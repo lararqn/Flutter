@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app/strings.dart';  
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -6,10 +7,10 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Home")),
+      appBar: AppBar(title: const Text(AppStrings.homePageTitle)),
       body: Center(
         child: Text(
-          'Welkom op de Homepagina!',
+          AppStrings.welcomeHome,
           style: TextStyle(fontSize: 24),
         ),
       ),
