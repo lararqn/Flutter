@@ -6,7 +6,6 @@ class AppStrings {
   static const String alreadyHaveAccount = 'Al een account? Inloggen hier';
   static const String noAccount = 'Nog geen account? Registreer hier';
   static const String homePageTitle = 'Home';
-  static const String welcomeHome = 'Welkom op de Homepagina!';
   static const String emailLabel = 'Email';
   static const String passwordLabel = 'Wachtwoord';
   static const String loginSuccess = 'Inloggen succesvol!';
@@ -16,5 +15,7 @@ class AppStrings {
   static const String addItem = 'Plaats Aanbod';
   static const String user = 'Gebruikers Pagina';
   static const String inbox = 'Inbox Pagina';
-    static const String search = 'Zoek Pagina';
+  static const String searchPlaceholder = 'Zoek item...';
+  static const String itemNearby = 'Items in jouw buurt';
+   static const String noCategoriesFound = 'Geen categorieën gevonden.'; 
 }

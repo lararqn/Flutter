@@ -55,7 +55,9 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(child: _pages[_selectedIndex]),
+      extendBody: true, 
+      extendBodyBehindAppBar: true, 
+      body: _pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         selectedItemColor: Colors.blueGrey, 
         unselectedItemColor: Colors.grey, 

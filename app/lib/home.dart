@@ -1,3 +1,4 @@
+import 'package:app/strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -12,17 +13,17 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  //paneel variabelen
+// #region variabelen
   double _panelHeightFactor = 0.6;
   final double _minPanelHeightFactor = 0.2;
-  final double _maxPanelHeightFactor = 0.95;
-  final double _handleHeight = 15.0;
-
-  //locatie variabelen
-  LatLng? _currentLocation; 
+  final double _maxPanelHeightFactor = 0.90;
+  final double _handleHeight = 10.0;
+  LatLng? _currentLocation;
   final MapController _mapController = MapController();
 
-  //paneel drag functie
+// #endregion 
+
+// #region paneel verplaatsen
   void _handleDragUpdate(DragUpdateDetails details) {
     setState(() {
       _panelHeightFactor -=
@@ -39,13 +40,14 @@ class _HomePageState extends State<HomePage> {
       );
     });
   }
-
+// #endregion 
   @override
   void initState() {
     super.initState();
     _getCurrentLocation();
   }
-  //huidige locatie ophalen
+
+// #region locatie ophalen
   Future<void> _getCurrentLocation() async {
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
@@ -64,14 +66,14 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         _currentLocation = LatLng(position.latitude, position.longitude);
         final adjustedLocation = LatLng(
-          _currentLocation!.latitude - 0.25,
+          _currentLocation!.latitude - 0.15,
           _currentLocation!.longitude,
         );
         _mapController.move(adjustedLocation, 10.0);
       });
     } catch (e) {}
   }
-
+// #endregion
   @override
   Widget build(BuildContext context) {
     final panelHeight = MediaQuery.of(context).size.height * _panelHeightFactor;
@@ -81,14 +83,14 @@ class _HomePageState extends State<HomePage> {
       body: Stack(
         children: [
           Positioned.fill(
-        //fluttermap     
+            //fluttermap
             child: FlutterMap(
               mapController: _mapController,
               options: MapOptions(
                 initialCenter: _currentLocation ?? LatLng(51.509364, -0.128928),
                 initialZoom: 10.0,
                 interactionOptions: const InteractionOptions(
-                  flags: InteractiveFlag.all,
+                  flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
                 ),
               ),
               children: [
@@ -115,7 +117,32 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
           ),
-           //paneel met items
+ // #region zoekbalk
+          Positioned(
+            top: 30,
+            left: 10,
+            right: 10,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: AppStrings.searchPlaceholder,
+                    border: InputBorder.none,
+                    prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
+                    contentPadding: EdgeInsets.symmetric(vertical: 15),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+// #endregion
+// #region paneel met items
           Positioned(
             left: 0,
             right: 0,
@@ -153,18 +180,21 @@ class _HomePageState extends State<HomePage> {
                     Expanded(
                       child: ListView(
                         physics: const ClampingScrollPhysics(),
-                        children: const [
+                        children: [
                           Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: Text(
-                              'Items in jouw buurt',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                            padding: const EdgeInsets.all(1.0),
+                            child: Center(
+                              child: Text(
+                                AppStrings.itemNearby,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color:  Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
-                            //hier komt inhoud van verhuurde item lijst
                           ),
+                          // TODO: item lijst hier zetten
                         ],
                       ),
                     ),
@@ -173,6 +203,7 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
+// #endregion
         ],
       ),
     );
