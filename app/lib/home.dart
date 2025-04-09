@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
+import 'package:geolocator/geolocator.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -11,11 +12,17 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  //paneel variabelen
   double _panelHeightFactor = 0.6;
   final double _minPanelHeightFactor = 0.2;
   final double _maxPanelHeightFactor = 0.95;
   final double _handleHeight = 15.0;
 
+  //locatie variabelen
+  LatLng? _currentLocation; 
+  final MapController _mapController = MapController();
+
+  //paneel drag functie
   void _handleDragUpdate(DragUpdateDetails details) {
     setState(() {
       _panelHeightFactor -=
@@ -26,12 +33,43 @@ class _HomePageState extends State<HomePage> {
         _panelHeightFactor =
             (1.0 - _handleHeight / MediaQuery.of(context).size.height);
       }
-
       _panelHeightFactor = _panelHeightFactor.clamp(
         _minPanelHeightFactor,
         _maxPanelHeightFactor,
       );
     });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _getCurrentLocation();
+  }
+  //huidige locatie ophalen
+  Future<void> _getCurrentLocation() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      return;
+    }
+
+    try {
+      Position position = await Geolocator.getCurrentPosition();
+      setState(() {
+        _currentLocation = LatLng(position.latitude, position.longitude);
+        final adjustedLocation = LatLng(
+          _currentLocation!.latitude - 0.25,
+          _currentLocation!.longitude,
+        );
+        _mapController.move(adjustedLocation, 10.0);
+      });
+    } catch (e) {}
   }
 
   @override
@@ -43,9 +81,11 @@ class _HomePageState extends State<HomePage> {
       body: Stack(
         children: [
           Positioned.fill(
+        //fluttermap     
             child: FlutterMap(
+              mapController: _mapController,
               options: MapOptions(
-                initialCenter: LatLng(51.509364, -0.128928),
+                initialCenter: _currentLocation ?? LatLng(51.509364, -0.128928),
                 initialZoom: 10.0,
                 interactionOptions: const InteractionOptions(
                   flags: InteractiveFlag.all,
@@ -53,14 +93,29 @@ class _HomePageState extends State<HomePage> {
               ),
               children: [
                 TileLayer(
-                  urlTemplate:
-                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.example.app',
                   tileProvider: CancellableNetworkTileProvider(),
                 ),
+                if (_currentLocation != null)
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        width: 40,
+                        height: 40,
+                        point: _currentLocation!,
+                        child: const Icon(
+                          Icons.location_pin,
+                          size: 40,
+                          color: Colors.blueGrey,
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
+           //paneel met items
           Positioned(
             left: 0,
             right: 0,
@@ -104,8 +159,11 @@ class _HomePageState extends State<HomePage> {
                             child: Text(
                               'Items in jouw buurt',
                               style: TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.bold),
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
+                            //hier komt inhoud van verhuurde item lijst
                           ),
                         ],
                       ),
