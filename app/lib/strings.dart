@@ -13,4 +13,8 @@ class AppStrings {
   static const String loginError = 'Fout bij inloggen: ';
   static const String registerSuccess = 'Account aangemaakt!';
   static const String registerError = 'Fout bij registreren: ';
+  static const String addItem = 'Plaats Aanbod';
+  static const String user = 'Gebruikers Pagina';
+  static const String inbox = 'Inbox Pagina';
+    static const String search = 'Zoek Pagina';
 }
