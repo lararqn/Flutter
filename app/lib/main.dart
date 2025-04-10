@@ -30,7 +30,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.blueGrey),
         fontFamily: 'Roboto',
       ),
-      home: const IndexPage(),
+      home: const MainNavigation(),
     );
   }
 }
