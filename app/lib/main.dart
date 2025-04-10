@@ -1,5 +1,6 @@
 import 'package:app/addItem.dart';
 import 'package:app/inbox.dart';
+import 'package:app/index.dart';
 import 'package:app/profile.dart';
 import 'package:app/search.dart';
 import 'package:flutter/material.dart';
@@ -29,7 +30,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.blueGrey),
         fontFamily: 'Roboto',
       ),
-      home: const MainNavigation(),
+      home: const IndexPage(),
     );
   }
 }

@@ -1,8 +1,9 @@
-import 'package:app/home.dart';
-import 'package:app/register.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:app/home.dart';
 import 'package:app/strings.dart';
+import 'package:app/index.dart';
+import 'package:app/register.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,6 +15,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+
   Future<void> login() async {
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -21,9 +23,7 @@ class _LoginPageState extends State<LoginPage> {
         password: passwordController.text.trim(),
       );
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text(AppStrings.loginSuccess)));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text(AppStrings.loginSuccess)));
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const HomePage()),
@@ -31,9 +31,7 @@ class _LoginPageState extends State<LoginPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('${AppStrings.loginError} $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${AppStrings.loginError} $e')));
       }
     }
   }
@@ -41,6 +39,17 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const IndexPage()),
+            );
+          },
+        ),
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -55,7 +64,7 @@ class _LoginPageState extends State<LoginPage> {
                   color: Color(0xFF383838),
                 ),
               ),
-
+              const SizedBox(height: 20),
               Card(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16.0),
@@ -121,18 +130,20 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
 
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const AuthPage()),
-                  );
-                },
-                child: Text(
-                  AppStrings.noAccount,
-                  style: TextStyle(color: Color(0xFF383838)),
+              const SizedBox(height: 20),
+              Center(
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AuthPage()),
+                    );
+                  },
+                  child: Text(
+                    AppStrings.noAccount,
+                    style: TextStyle(color: Color(0xFF383838)),
+                  ),
                 ),
               ),
             ],

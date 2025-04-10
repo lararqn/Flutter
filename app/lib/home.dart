@@ -194,7 +194,7 @@ class _HomePageState extends State<HomePage> {
                               ),
                             ),
                           ),
-                          // TODO: item lijst hier zetten
+                          //TODO: item lijst hier zetten
                         ],
                       ),
                     ),

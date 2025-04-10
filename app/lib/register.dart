@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:app/strings.dart';
 import 'package:app/login.dart';
+import 'package:app/index.dart'; 
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -14,29 +15,40 @@ class _AuthPageState extends State<AuthPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
-Future<void> register() async {
-  try {
-    await FirebaseAuth.instance.createUserWithEmailAndPassword(
-      email: emailController.text.trim(),
-      password: passwordController.text.trim(),
-    );
-    if (mounted) {  
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(AppStrings.registerSuccess)),
+  Future<void> register() async {
+    try {
+      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
       );
-    }
-  } catch (e) {
-    if (mounted) { 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${AppStrings.registerError} $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(AppStrings.registerSuccess)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${AppStrings.registerError} $e')),
+        );
+      }
     }
   }
-}
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const IndexPage()),
+            );
+          },
+        ),
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -51,7 +63,7 @@ Future<void> register() async {
                   color: Color(0xFF383838),
                 ),
               ),
-           
+              const SizedBox(height: 20),
               Card(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16.0),
@@ -114,17 +126,18 @@ Future<void> register() async {
                 ),
               ),
               const SizedBox(height: 20),
-
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const LoginPage()),
-                  );
-                },
-                child: Text(
-                  AppStrings.alreadyHaveAccount,
-                  style: TextStyle(color: Color(0xFF383838)),
+              Center(
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const LoginPage()),
+                    );
+                  },
+                  child: Text(
+                    AppStrings.alreadyHaveAccount,
+                    style: TextStyle(color: Color(0xFF383838)),
+                  ),
                 ),
               ),
             ],
