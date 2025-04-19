@@ -66,5 +66,4 @@ class DefaultFirebaseOptions {
     projectId: 'flutter-acf51',
     storageBucket: 'flutter-acf51.firebasestorage.app',
   );
-
 }

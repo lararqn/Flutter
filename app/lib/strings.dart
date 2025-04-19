@@ -9,7 +9,7 @@ class AppStrings {
   static const String emailLabel = 'Email';
   static const String passwordLabel = 'Wachtwoord';
   static const String loginSuccess = 'Inloggen succesvol!';
-  static const String loginError = 'Fout bij inloggen: ';
+  static const String loginError = 'Fout bij inloggen ';
   static const String registerSuccess = 'Account aangemaakt!';
   static const String registerError = 'Fout bij registreren: ';
   static const String addItem = 'Plaats Aanbod';
@@ -17,5 +17,16 @@ class AppStrings {
   static const String inbox = 'Inbox Pagina';
   static const String searchPlaceholder = 'Zoek item...';
   static const String itemNearby = 'Items in jouw buurt';
-   static const String noCategoriesFound = 'Geen categorieën gevonden.'; 
+  static const String noCategoriesFound = 'Geen categorieën gevonden.';
+  static const String addItemSuccess = 'Item succesvol toegevoegd!';
+  static const String addItemError = 'Fout bij toevoegen item: ';
+  static const String addItemIncomplete = 'Vul alle verplichte velden in';
+  static const String locationError = 'Kon locatie niet ophalen: ';
+  static const String invalidLoginDetails = 'Ongeldige inloggegevens.';
+  static const String invalidEmail = 'Ongeldige e-mailadres.';
+  static const String emailInUse = 'Dit e-mailadres is al in gebruik.';
+  static const String passwordWeak = 'Wachtwoord is te zwak.';
+  static const String passwordInvalid =
+      'Wachtwoord moet minimaal 8 karakters bevatten, met 1 hoofdletter, 1 cijfer en 1 speciaal teken.';
+  static const String invalidCredentials = 'Foute inloggegevens';
 }

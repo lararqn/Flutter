@@ -3,6 +3,7 @@ import 'package:app/inbox.dart';
 import 'package:app/index.dart';
 import 'package:app/profile.dart';
 import 'package:app/search.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -10,9 +11,7 @@ import 'package:app/home.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   runApp(const MyApp());
 }
@@ -30,7 +29,18 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.blueGrey),
         fontFamily: 'Roboto',
       ),
-      home: const MainNavigation(),
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasData) {
+            return const MainNavigation();
+          }
+          return const IndexPage();
+        },
+      ),
     );
   }
 }
@@ -56,12 +66,12 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBody: true, 
-      extendBodyBehindAppBar: true, 
+      extendBody: true,
+      extendBodyBehindAppBar: true,
       body: _pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
-        selectedItemColor: Colors.blueGrey, 
-        unselectedItemColor: Colors.grey, 
+        selectedItemColor: Colors.blueGrey,
+        unselectedItemColor: Colors.grey,
         currentIndex: _selectedIndex,
         onTap: (index) {
           setState(() {
