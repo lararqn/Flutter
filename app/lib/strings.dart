@@ -29,4 +29,9 @@ class AppStrings {
   static const String passwordInvalid =
       'Wachtwoord moet minimaal 8 karakters bevatten, met 1 hoofdletter, 1 cijfer en 1 speciaal teken.';
   static const String invalidCredentials = 'Foute inloggegevens';
+  static const String invalidTitle = 'Titel is verplicht';
+  static const String invalidCategory = 'Selecteer een categorie';
+  static const String invalidPrice = 'Vul een geldige prijs in';
+  static const String imageTooLarge = 'Afbeelding is te groot (max. 5MB)';
+  static const String imageUploadFailed = 'Fout bij uploaden afbeelding';
 }

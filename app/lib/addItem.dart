@@ -140,72 +140,64 @@ class _AddItemPageState extends State<AddItemPage> {
   }
 
   Future<void> _saveItem() async {
-    if (_titleController.text.isEmpty ||
-        _selectedCategory == null ||
-        _userLocation == null) {
-      print(
-        'Validation failed: title=${_titleController.text}, category=$_selectedCategory, location=$_userLocation',
+  if (_titleController.text.isEmpty ||
+      _selectedCategory == null ||
+      _userLocation == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppStrings.addItemIncomplete)),
+    );
+    return;
+  }
+
+  if (!kIsWeb && _imageFiles.isEmpty || kIsWeb && _webImageBytesList.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Voeg minstens één afbeelding toe.')),
+    );
+    return;
+  }
+
+  if (_rentOption == "Te huur") {
+    final price = double.tryParse(_priceController.text);
+    final extraPrice = double.tryParse(_extraDayPriceController.text);
+
+    if (price == null || extraPrice == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Vul geldige prijzen in voor verhuur.')),
       );
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(AppStrings.addItemIncomplete)));
       return;
     }
-
-    if (_rentOption == "Te huur") {
-      if (_priceController.text.isEmpty ||
-          _extraDayPriceController.text.isEmpty) {
-        print('Validation failed: price or extra day price is empty');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Vul prijs per dag en prijs per extra dag in'),
-          ),
-        );
-        return;
-      }
-      if (double.tryParse(_priceController.text) == null ||
-          double.tryParse(_extraDayPriceController.text) == null) {
-        print(
-          'Validation failed: price or extra day price is not a valid number',
-        );
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Prijs moet een geldig nummer zijn')),
-        );
-        return;
-      }
-    }
-
-    try {
-      print('Uploading images...');
-      final imageUrls = await _uploadImages();
-      print('Saving item to Firestore...');
-      await FirebaseFirestore.instance.collection('Items').add({
-        'title': _titleController.text,
-        'description': _descriptionController.text,
-        'category': _selectedCategory,
-        'pricePerDay': double.tryParse(_priceController.text) ?? 0.0,
-        'extraDayPrice': double.tryParse(_extraDayPriceController.text) ?? 0.0,
-        'rentOption': _rentOption,
-        'imageUrls': imageUrls,
-        'latitude': _userLocation!.latitude,
-        'longitude': _userLocation!.longitude,
-        'ownerId': FirebaseAuth.instance.currentUser!.uid,
-        'available': true,
-        'availableDates': [],
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      print('Item saved successfully');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(AppStrings.addItemSuccess)));
-      Navigator.pop(context);
-    } catch (e) {
-      print('Error saving item: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('${AppStrings.addItemError}$e')));
-    }
   }
+
+  try {
+    final imageUrls = await _uploadImages();
+    await FirebaseFirestore.instance.collection('Items').add({
+      'title': _titleController.text,
+      'description': _descriptionController.text,
+      'category': _selectedCategory,
+      'pricePerDay': double.tryParse(_priceController.text) ?? 0.0,
+      'extraDayPrice': double.tryParse(_extraDayPriceController.text) ?? 0.0,
+      'rentOption': _rentOption,
+      'imageUrls': imageUrls,
+      'latitude': _userLocation!.latitude,
+      'longitude': _userLocation!.longitude,
+      'ownerId': FirebaseAuth.instance.currentUser!.uid,
+      'available': true,
+      'availableDates': [],
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppStrings.addItemSuccess)),
+    );
+    Navigator.pop(context);
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${AppStrings.addItemError} $e')),
+    );
+  }
+}
+
+
 
   Widget _buildInputField({
     required TextEditingController controller,
