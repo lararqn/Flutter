@@ -41,31 +41,26 @@ class ItemDetailPage extends StatelessWidget {
             else
               const Icon(Icons.image_not_supported, size: 200),
             const SizedBox(height: 16),
-
             Text(
               item['title'] ?? 'Geen titel',
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-
             Text(
               'Beschrijving: ${item['description'] ?? 'Geen beschrijving'}',
               style: const TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 8),
-
             Text(
               'Categorie: ${item['category'] ?? 'Onbekend'}',
               style: const TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 8),
-
             Text(
               'Optie: ${item['rentOption'] ?? 'Te leen'}',
               style: const TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 8),
-
             if (item['rentOption'] == 'Te huur') ...[
               Text(
                 'Prijs per dag: €${item['pricePerDay']?.toStringAsFixed(2) ?? '0.00'}',

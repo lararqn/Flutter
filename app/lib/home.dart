@@ -1,3 +1,5 @@
+import 'package:app/ItemDetailPage.dart';
+import 'package:app/customMarker.dart';
 import 'package:app/strings.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -6,131 +8,6 @@ import 'package:latlong2/latlong.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:geolocator/geolocator.dart';
 
-// ItemDetailPage
-class ItemDetailPage extends StatelessWidget {
-  final Map<String, dynamic> item;
-
-  const ItemDetailPage({super.key, required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(item['title'] ?? 'Geen titel'),
-        backgroundColor: Colors.blueGrey,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (item['imageUrls'] != null && item['imageUrls'].isNotEmpty)
-              SizedBox(
-                height: 200,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: item['imageUrls'].length,
-                  itemBuilder: (context, index) {
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: Image.network(
-                        item['imageUrls'][index],
-                        width: 200,
-                        height: 200,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const Icon(Icons.error),
-                      ),
-                    );
-                  },
-                ),
-              )
-            else
-              const Icon(Icons.image_not_supported, size: 200),
-            const SizedBox(height: 16),
-            Text(
-              item['title'] ?? 'Geen titel',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Beschrijving: ${item['description'] ?? 'Geen beschrijving'}',
-              style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Categorie: ${item['category'] ?? 'Onbekend'}',
-              style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Optie: ${item['rentOption'] ?? 'Te leen'}',
-              style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            if (item['rentOption'] == 'Te huur') ...[
-              Text(
-                'Prijs per dag: €${item['pricePerDay']?.toStringAsFixed(2) ?? '0.00'}',
-                style: const TextStyle(fontSize: 16),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Extra dag: €${item['extraDayPrice']?.toStringAsFixed(2) ?? '0.00'}',
-                style: const TextStyle(fontSize: 16),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class CustomMarker extends StatefulWidget {
-  final LatLng point;
-  final Map<String, dynamic> item;
-  final VoidCallback onTap;
-
-  const CustomMarker({
-    super.key,
-    required this.point,
-    required this.item,
-    required this.onTap,
-  });
-
-  @override
-  CustomMarkerState createState() => CustomMarkerState();
-}
-
-class CustomMarkerState extends State<CustomMarker> {
-  bool _isTapped = false;
-
-  void _handleTap() {
-    setState(() {
-      _isTapped = true;
-    });
-    widget.onTap();
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) {
-        setState(() {
-          _isTapped = false;
-        });
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _handleTap,
-      child: Icon(
-        Icons.location_pin,
-        size: 40,
-        color: _isTapped ? Colors.orange : Colors.red,
-      ),
-    );
-  }
-}
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -148,6 +25,9 @@ class _HomePageState extends State<HomePage> {
   final MapController _mapController = MapController();
 
   final List<MapEntry<Marker, Map<String, dynamic>>> _markerItems = [];
+
+  double _selectedRadius = 5.0; 
+  final List<double> _radiusOptions = [5.0, 10.0, 15.0, 20.0, double.infinity]; 
 
   void _handleDragUpdate(DragUpdateDetails details) {
     setState(() {
@@ -215,7 +95,7 @@ class _HomePageState extends State<HomePage> {
     final currentZoom = _mapController.camera.zoom;
     _mapController.move(
       _mapController.camera.center,
-      currentZoom + 1.0, 
+      currentZoom + 1.0,
     );
   }
 
@@ -225,6 +105,20 @@ class _HomePageState extends State<HomePage> {
       _mapController.camera.center,
       currentZoom - 1.0,
     );
+  }
+
+  bool _isItemWithinRadius(LatLng itemLocation) {
+    if (_currentLocation == null) return false;
+
+    final distance = const Distance().as(
+      LengthUnit.Kilometer,
+      _currentLocation!,
+      itemLocation,
+    );
+
+    if (_selectedRadius == double.infinity) return true;
+
+    return distance <= _selectedRadius;
   }
 
   @override
@@ -241,12 +135,12 @@ class _HomePageState extends State<HomePage> {
               options: MapOptions(
                 initialCenter: _currentLocation ?? LatLng(51.509364, -0.128928),
                 initialZoom: 10.0,
-                minZoom: 5.0, 
-                maxZoom: 18.0, 
+                minZoom: 5.0,
+                maxZoom: 18.0,
                 interactionOptions: const InteractionOptions(
                   flags: InteractiveFlag.pinchZoom |
                       InteractiveFlag.drag |
-                      InteractiveFlag.doubleTapZoom | 
+                      InteractiveFlag.doubleTapZoom |
                       InteractiveFlag.scrollWheelZoom,
                 ),
                 onTap: (tapPosition, point) {
@@ -273,6 +167,21 @@ class _HomePageState extends State<HomePage> {
                   userAgentPackageName: 'com.example.app',
                   tileProvider: CancellableNetworkTileProvider(),
                 ),
+                if (_currentLocation != null)
+                  CircleLayer(
+                    circles: [
+                      CircleMarker(
+                        point: _currentLocation!,
+                        radius: _selectedRadius == double.infinity
+                            ? 0
+                            : _selectedRadius * 1000, 
+                        color: Colors.red.withOpacity(0.3), 
+                        borderStrokeWidth: 2.0,
+                        borderColor: Colors.red,
+                        useRadiusInMeter: true,
+                      ),
+                    ],
+                  ),
                 StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('Items')
@@ -294,12 +203,14 @@ class _HomePageState extends State<HomePage> {
                       var item = doc.data() as Map<String, dynamic>;
                       var location = item['location'] as GeoPoint?;
                       if (location == null) return null;
+                      final itemLatLng = LatLng(location.latitude, location.longitude);
+                      if (!_isItemWithinRadius(itemLatLng)) return null;
                       final marker = Marker(
                         width: 40,
                         height: 40,
-                        point: LatLng(location.latitude, location.longitude),
+                        point: itemLatLng,
                         child: CustomMarker(
-                          point: LatLng(location.latitude, location.longitude),
+                          point: itemLatLng,
                           item: item,
                           onTap: () => _showItemDetails(item),
                         ),
@@ -350,24 +261,66 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
           ),
+          // // Zoekbalk
+          // Positioned(
+          //   top: 30,
+          //   left: 10,
+          //   right: 10,
+          //   child: Material(
+          //     color: Colors.transparent,
+          //     child: Container(
+          //       decoration: BoxDecoration(
+          //         color: Colors.white,
+          //         borderRadius: BorderRadius.circular(20),
+          //       ),
+          //       child: TextField(
+          //         decoration: InputDecoration(
+          //           hintText: AppStrings.searchPlaceholder,
+          //           border: InputBorder.none,
+          //           prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
+          //           contentPadding: EdgeInsets.symmetric(vertical: 15),
+          //         ),
+          //       ),
+          //     ),
+          //   ),
+          // ),
           Positioned(
-            top: 30,
+            top: 80,
             left: 10,
-            right: 10,
             child: Material(
               color: Colors.transparent,
               child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
+                  boxShadow: const [
+                    BoxShadow(
+                      blurRadius: 4,
+                      color: Colors.grey,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
                 ),
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: AppStrings.searchPlaceholder,
-                    border: InputBorder.none,
-                    prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
-                    contentPadding: EdgeInsets.symmetric(vertical: 15),
-                  ),
+                child: DropdownButton<double>(
+                  value: _selectedRadius,
+                  onChanged: (double? newValue) {
+                    if (newValue != null) {
+                      setState(() {
+                        _selectedRadius = newValue;
+                      });
+                    }
+                  },
+                  items: _radiusOptions.map((double radius) {
+                    return DropdownMenuItem<double>(
+                      value: radius,
+                      child: Text(
+                        radius == double.infinity ? '>20 km' : '${radius.toInt()} km',
+                      ),
+                    );
+                  }).toList(),
+                  underline: const SizedBox(),
+                  icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
                 ),
               ),
             ),
@@ -428,11 +381,24 @@ class _HomePageState extends State<HomePage> {
                                 child: Text('Geen items gevonden'));
                           }
 
+                          final filteredDocs = snapshot.data!.docs.where((doc) {
+                            var item = doc.data() as Map<String, dynamic>;
+                            var location = item['location'] as GeoPoint?;
+                            if (location == null) return false;
+                            final itemLatLng = LatLng(location.latitude, location.longitude);
+                            return _isItemWithinRadius(itemLatLng);
+                          }).toList();
+
+                          if (filteredDocs.isEmpty) {
+                            return const Center(
+                                child: Text('Geen items binnen deze straal'));
+                          }
+
                           return ListView.builder(
                             physics: const ClampingScrollPhysics(),
-                            itemCount: snapshot.data!.docs.length,
+                            itemCount: filteredDocs.length,
                             itemBuilder: (context, index) {
-                              var item = snapshot.data!.docs[index].data()
+                              var item = filteredDocs[index].data()
                                   as Map<String, dynamic>;
                               return ListTile(
                                 leading: item['imageUrls'] != null &&
