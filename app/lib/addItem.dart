@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:app/home.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -39,29 +40,29 @@ class _AddItemPageState extends State<AddItemPage> {
   }
 
   Future<void> _fetchCategories() async {
-    try {
-      final snapshot =
-          await FirebaseFirestore.instance
-              .collection('Categories')
-              .doc('1')
-              .get();
-      if (snapshot.exists) {
-        final data = snapshot.data() as Map<String, dynamic>;
-        final categories = List<String>.from(data.keys);
-        setState(() {
-          _categories = categories;
-        });
-      } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(AppStrings.noCategoriesFound)));
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${AppStrings.noCategoriesFound}: $e')),
-      );
+  try {
+    final snapshot =
+        await FirebaseFirestore.instance
+            .collection('Categories')
+            .doc('1')
+            .get();
+    if (snapshot.exists) {
+      final data = snapshot.data() as Map<String, dynamic>;
+      final categories = List<String>.from(data.keys);
+      setState(() {
+        _categories = categories;
+      });
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(AppStrings.noCategoriesFound)));
     }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${AppStrings.noCategoriesFound}: $e')),
+    );
   }
+}
 
   Future<void> _getUserLocation() async {
     LocationPermission permission = await Geolocator.checkPermission();
@@ -110,32 +111,26 @@ class _AddItemPageState extends State<AddItemPage> {
     List<String> imageUrls = [];
     try {
       for (var file in _imageFiles) {
-        print('Uploading mobile image: ${file.path}');
         final ref = FirebaseStorage.instance.ref().child(
           'items/${DateTime.now().millisecondsSinceEpoch}.jpg',
         );
         await ref.putFile(file);
         final url = await ref.getDownloadURL();
         imageUrls.add(url);
-        print('Uploaded mobile image: $url');
       }
       for (var bytes in _webImageBytesList) {
-        print('Uploading web image...');
         final ref = FirebaseStorage.instance.ref().child(
           'items/${DateTime.now().millisecondsSinceEpoch}.jpg',
         );
         await ref.putData(bytes);
         final url = await ref.getDownloadURL();
         imageUrls.add(url);
-        print('Uploaded web image: $url');
       }
     } catch (e) {
-      print('Error uploading images: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fout bij uploaden afbeeldingen: $e')),
       );
     }
-    print('Image upload complete. URLs: $imageUrls');
     return imageUrls;
   }
 
@@ -144,53 +139,94 @@ class _AddItemPageState extends State<AddItemPage> {
       _selectedCategory == null ||
       _userLocation == null) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(AppStrings.addItemIncomplete)),
+      const SnackBar(content: Text(AppStrings.addItemIncomplete)),
     );
     return;
   }
 
-  if (!kIsWeb && _imageFiles.isEmpty || kIsWeb && _webImageBytesList.isEmpty) {
+  if ((kIsWeb && _webImageBytesList.isEmpty) ||
+      (!kIsWeb && _imageFiles.isEmpty)) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Voeg minstens één afbeelding toe.')),
+      const SnackBar(content: Text('Voeg minstens één afbeelding toe.')),
     );
     return;
   }
 
   if (_rentOption == "Te huur") {
-    final price = double.tryParse(_priceController.text);
-    final extraPrice = double.tryParse(_extraDayPriceController.text);
-
-    if (price == null || extraPrice == null) {
+    final price = double.tryParse(_priceController.text.replaceAll(',', '.'));
+    final extraPrice =
+        double.tryParse(_extraDayPriceController.text.replaceAll(',', '.'));
+    if (price == null || extraPrice == null || price <= 0 || extraPrice <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Vul geldige prijzen in voor verhuur.')),
+        const SnackBar(content: Text('Vul geldige prijzen in voor verhuur.')),
       );
       return;
     }
   }
 
   try {
-    final imageUrls = await _uploadImages();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Item wordt opgeslagen...')),
+    );
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Je moet ingelogd zijn om een item op te slaan.')),
+      );
+      return;
+    }
+
+    List<String> imageUrls = [];
+    final storageRef = FirebaseStorage.instance.ref().child('items/${user.uid}');
+
+    if (kIsWeb) {
+      for (var bytes in _webImageBytesList) {
+        final ref =
+            storageRef.child('${DateTime.now().millisecondsSinceEpoch}.jpg');
+        await ref.putData(bytes);
+        final url = await ref.getDownloadURL();
+        imageUrls.add(url);
+      }
+    } else {
+      for (var file in _imageFiles) {
+        final ref =
+            storageRef.child('${DateTime.now().millisecondsSinceEpoch}.jpg');
+        await ref.putFile(file);
+        final url = await ref.getDownloadURL();
+        imageUrls.add(url);
+      }
+    }
+
+    // Opslaan in firebase database
     await FirebaseFirestore.instance.collection('Items').add({
-      'title': _titleController.text,
-      'description': _descriptionController.text,
+      'title': _titleController.text.trim(),
+      'description': _descriptionController.text.trim(),
       'category': _selectedCategory,
-      'pricePerDay': double.tryParse(_priceController.text) ?? 0.0,
-      'extraDayPrice': double.tryParse(_extraDayPriceController.text) ?? 0.0,
+      'pricePerDay': _rentOption == "Te huur"
+          ? double.parse(_priceController.text.replaceAll(',', '.'))
+          : 0.0,
+      'extraDayPrice': _rentOption == "Te huur"
+          ? double.parse(_extraDayPriceController.text.replaceAll(',', '.'))
+          : 0.0,
       'rentOption': _rentOption,
       'imageUrls': imageUrls,
-      'latitude': _userLocation!.latitude,
-      'longitude': _userLocation!.longitude,
-      'ownerId': FirebaseAuth.instance.currentUser!.uid,
+      'location': GeoPoint(_userLocation!.latitude, _userLocation!.longitude),
+      'ownerId': user.uid,
       'available': true,
       'availableDates': [],
       'createdAt': FieldValue.serverTimestamp(),
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(AppStrings.addItemSuccess)),
+      const SnackBar(content: Text(AppStrings.addItemSuccess)),
     );
-    Navigator.pop(context);
-  } catch (e) {
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => HomePage()), 
+    );
+  } catch (e, stackTrace) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${AppStrings.addItemError} $e')),
     );
