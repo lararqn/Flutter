@@ -17,6 +17,8 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
   String? _emailError;
   String? _credentialsError;
+  bool _obscurePassword = true;
+
 
   bool isValidEmail(String email) {
     final emailRegEx = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
@@ -149,12 +151,23 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 16),
                       TextField(
                         controller: passwordController,
-                        obscureText: true,
+                        obscureText: _obscurePassword,
                         decoration: InputDecoration(
                           labelText: AppStrings.passwordLabel,
                           prefixIcon: const Icon(
                             Icons.lock,
                             color: Color(0xFF383838),
+                          ),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                              color: const Color(0xFF383838),
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -166,6 +179,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         onChanged: onPasswordChanged,
                       ),
+
                       const SizedBox(height: 20),
                       ElevatedButton(
                         onPressed: _isLoading ? null : login,

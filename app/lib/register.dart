@@ -1,8 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:app/strings.dart';
@@ -24,6 +22,8 @@ class _AuthPageState extends State<AuthPage> {
   DateTime? selectedDate;
   XFile? _profileImage;
   final ImagePicker _picker = ImagePicker();
+  bool _passwordVisible = false;
+
 
   bool _isLoading = false;
   String? _emailError;
@@ -32,16 +32,18 @@ class _AuthPageState extends State<AuthPage> {
   String? _lastNameError;
   String? _dateError;
 
+  bool _hasMinLength = false;
+  bool _hasUppercase = false;
+  bool _hasDigit = false;
+  bool _hasSpecialChar = false;
+
   bool isValidEmail(String email) {
     final emailRegEx = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
     return emailRegEx.hasMatch(email);
   }
 
-  bool isValidPassword(String password) {
-    final passwordRegEx = RegExp(
-      r'^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*?])[A-Za-z\d!@#$%^&*?]{8,}$',
-    );
-    return passwordRegEx.hasMatch(password);
+ bool isValidPassword(String password) {
+    return _hasMinLength && _hasUppercase && _hasDigit && _hasSpecialChar;
   }
 
   void validateEmail(String value) {
@@ -56,6 +58,11 @@ class _AuthPageState extends State<AuthPage> {
 
   void validatePassword(String value) {
     setState(() {
+      _hasMinLength = value.length >= 8;
+      _hasUppercase = RegExp(r'[A-Z]').hasMatch(value);
+      _hasDigit = RegExp(r'\d').hasMatch(value);
+      _hasSpecialChar = RegExp(r'[!@#$%^&*?]').hasMatch(value);
+
       if (value.isEmpty || isValidPassword(value)) {
         _passwordError = null;
       } else {
@@ -173,7 +180,7 @@ class _AuthPageState extends State<AuthPage> {
           'lastName': lastName,
           'birthDate': selectedDate!.toIso8601String(),
           'email': email,
-          'photoBase64': photoBase64, 
+          'photoBase64': photoBase64,
           'createdAt': Timestamp.now(),
         });
 
@@ -376,12 +383,23 @@ class _AuthPageState extends State<AuthPage> {
                       const SizedBox(height: 16),
                       TextField(
                         controller: passwordController,
-                        obscureText: true,
+                        obscureText: !_passwordVisible,
                         decoration: InputDecoration(
                           labelText: AppStrings.passwordLabel,
                           prefixIcon: const Icon(
                             Icons.lock,
                             color: Color(0xFF383838),
+                          ),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _passwordVisible ? Icons.visibility : Icons.visibility_off,
+                              color: Colors.grey,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _passwordVisible = !_passwordVisible;
+                              });
+                            },
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -392,6 +410,84 @@ class _AuthPageState extends State<AuthPage> {
                           errorText: _passwordError,
                         ),
                         onChanged: validatePassword,
+                      ),
+
+                      const SizedBox(height: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                _hasMinLength ? Icons.check_circle : Icons.circle_outlined,
+                                color: _hasMinLength ? Colors.green : Colors.grey,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Minimaal 8 tekens',
+                                style: TextStyle(
+                                  color: _hasMinLength ? Colors.green : Colors.grey,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                _hasUppercase ? Icons.check_circle : Icons.circle_outlined,
+                                color: _hasUppercase ? Colors.green : Colors.grey,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Ten minste 1 hoofdletter',
+                                style: TextStyle(
+                                  color: _hasUppercase ? Colors.green : Colors.grey,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                _hasDigit ? Icons.check_circle : Icons.circle_outlined,
+                                color: _hasDigit ? Colors.green : Colors.grey,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Ten minste 1 cijfer',
+                                style: TextStyle(
+                                  color: _hasDigit ? Colors.green : Colors.grey,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                _hasSpecialChar ? Icons.check_circle : Icons.circle_outlined,
+                                color: _hasSpecialChar ? Colors.green : Colors.grey,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Ten minste 1 speciaal teken (!@#\$%^&*?)',
+                                style: TextStyle(
+                                  color: _hasSpecialChar ? Colors.green : Colors.grey,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton(
