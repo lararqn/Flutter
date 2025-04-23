@@ -1,5 +1,6 @@
 import 'package:app/ItemDetailPage.dart';
 import 'package:app/customMarker.dart';
+import 'package:app/search.dart';
 import 'package:app/strings.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -25,9 +26,8 @@ class _HomePageState extends State<HomePage> {
   final MapController _mapController = MapController();
 
   final List<MapEntry<Marker, Map<String, dynamic>>> _markerItems = [];
-
-  double _selectedRadius = 5.0; 
-  final List<double> _radiusOptions = [5.0, 10.0, 15.0, 20.0, double.infinity]; 
+  double _selectedRadius = 5.0;
+  final List<double> _radiusOptions = [5.0, 10.0, 15.0, 20.0, double.infinity];
 
   void _handleDragUpdate(DragUpdateDetails details) {
     setState(() {
@@ -126,6 +126,9 @@ class _HomePageState extends State<HomePage> {
     final panelHeight = MediaQuery.of(context).size.height * _panelHeightFactor;
 
     return Scaffold(
+      appBar: AppBar(
+        title: Text('Home'),
+      ),
       extendBodyBehindAppBar: true,
       body: Stack(
         children: [
@@ -174,8 +177,8 @@ class _HomePageState extends State<HomePage> {
                         point: _currentLocation!,
                         radius: _selectedRadius == double.infinity
                             ? 0
-                            : _selectedRadius * 1000, 
-                        color: Colors.red.withOpacity(0.3), 
+                            : _selectedRadius * 1000,
+                        color: Colors.red.withOpacity(0.3),
                         borderStrokeWidth: 2.0,
                         borderColor: Colors.red,
                         useRadiusInMeter: true,
@@ -261,29 +264,6 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
           ),
-          // // Zoekbalk
-          // Positioned(
-          //   top: 30,
-          //   left: 10,
-          //   right: 10,
-          //   child: Material(
-          //     color: Colors.transparent,
-          //     child: Container(
-          //       decoration: BoxDecoration(
-          //         color: Colors.white,
-          //         borderRadius: BorderRadius.circular(20),
-          //       ),
-          //       child: TextField(
-          //         decoration: InputDecoration(
-          //           hintText: AppStrings.searchPlaceholder,
-          //           border: InputBorder.none,
-          //           prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
-          //           contentPadding: EdgeInsets.symmetric(vertical: 15),
-          //         ),
-          //       ),
-          //     ),
-          //   ),
-          // ),
           Positioned(
             top: 80,
             left: 10,

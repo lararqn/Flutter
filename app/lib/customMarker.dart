@@ -25,7 +25,6 @@ class CustomMarkerState extends State<CustomMarker> {
       _isTapped = true;
     });
     widget.onTap();
-    // Reset de kleur na een korte animatie
     Future.delayed(const Duration(milliseconds: 300), () {
       if (mounted) {
         setState(() {
