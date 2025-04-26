@@ -107,33 +107,6 @@ class _AddItemPageState extends State<AddItemPage> {
     }
   }
 
-  Future<List<String>> _uploadImages() async {
-    List<String> imageUrls = [];
-    try {
-      for (var file in _imageFiles) {
-        final ref = FirebaseStorage.instance.ref().child(
-          'items/${DateTime.now().millisecondsSinceEpoch}.jpg',
-        );
-        await ref.putFile(file);
-        final url = await ref.getDownloadURL();
-        imageUrls.add(url);
-      }
-      for (var bytes in _webImageBytesList) {
-        final ref = FirebaseStorage.instance.ref().child(
-          'items/${DateTime.now().millisecondsSinceEpoch}.jpg',
-        );
-        await ref.putData(bytes);
-        final url = await ref.getDownloadURL();
-        imageUrls.add(url);
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fout bij uploaden afbeeldingen: $e')),
-      );
-    }
-    return imageUrls;
-  }
-
   Future<void> _saveItem() async {
   if (_titleController.text.isEmpty ||
       _selectedCategory == null ||

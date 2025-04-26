@@ -21,6 +21,9 @@ dependencies:
   geolocator: ^13.0.4
   image_picker: ^1.1.2
   image: ^4.2.0
+  table_calendar: ^3.0.8
+  intl: ^0.20.0
+  geocoding: ^3.0.0
 
 dev_dependencies:
   flutter_test:

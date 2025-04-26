@@ -1,6 +1,5 @@
 import 'package:app/ItemDetailPage.dart';
 import 'package:app/customMarker.dart';
-import 'package:app/search.dart';
 import 'package:app/strings.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +7,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
 
 class HomePage extends StatefulWidget {
@@ -29,20 +29,30 @@ class _HomePageState extends State<HomePage> {
   double _selectedRadius = 5.0;
   final List<double> _radiusOptions = [5.0, 10.0, 15.0, 20.0, double.infinity];
 
+  // void _handleDragUpdate(DragUpdateDetails details) {
+  //   setState(() {
+  //     _panelHeightFactor -=
+  //         details.delta.dy / MediaQuery.of(context).size.height;
+
+  //     if (_panelHeightFactor >
+  //         (1.0 - _handleHeight / MediaQuery.of(context).size.height)) {
+  //       _panelHeightFactor =
+  //           (1.0 - _handleHeight / MediaQuery.of(context).size.height);
+  //     }
+  //     _panelHeightFactor = _panelHeightFactor.clamp(
+  //       _minPanelHeightFactor,
+  //       _maxPanelHeightFactor,
+  //     );
+  //   });
+  // }
   void _handleDragUpdate(DragUpdateDetails details) {
     setState(() {
-      _panelHeightFactor -=
-          details.delta.dy / MediaQuery.of(context).size.height;
+      _panelHeightFactor -= details.delta.dy / MediaQuery.of(context).size.height;
 
-      if (_panelHeightFactor >
-          (1.0 - _handleHeight / MediaQuery.of(context).size.height)) {
-        _panelHeightFactor =
-            (1.0 - _handleHeight / MediaQuery.of(context).size.height);
+      if (_panelHeightFactor > (1.0 - _handleHeight / MediaQuery.of(context).size.height)) {
+        _panelHeightFactor = (1.0 - _handleHeight / MediaQuery.of(context).size.height);
       }
-      _panelHeightFactor = _panelHeightFactor.clamp(
-        _minPanelHeightFactor,
-        _maxPanelHeightFactor,
-      );
+      _panelHeightFactor = _panelHeightFactor.clamp(_minPanelHeightFactor, _maxPanelHeightFactor);
     });
   }
 
@@ -121,13 +131,42 @@ class _HomePageState extends State<HomePage> {
     return distance <= _selectedRadius;
   }
 
-  @override
+Future<String> _getLocationName(GeoPoint? location) async {
+    if (location == null) return 'Onbekende locatie';
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        location.latitude,
+        location.longitude,
+      );
+      if (placemarks.isNotEmpty) {
+        final placemark = placemarks.first;
+        return placemark.locality ?? placemark.subAdministrativeArea ?? 'Onbekende locatie';
+      }
+      return 'Onbekende locatie';
+    } catch (e) {
+      return 'Locatie niet beschikbaar';
+    }
+  }
+
+  bool _isItemAvailable(Map<String, dynamic> item) {
+    final available = item['available'] as bool? ?? true;
+    final availableDates = item['availableDates'] as List<dynamic>? ?? [];
+    bool isCurrentlyBooked = availableDates.any((range) {
+      DateTime start = (range['startDate'] as Timestamp).toDate();
+      DateTime end = (range['endDate'] as Timestamp).toDate();
+      DateTime now = DateTime.now();
+      return now.isAfter(start.subtract(const Duration(days: 1))) && now.isBefore(end.add(const Duration(days: 1)));
+    });
+    return available && !isCurrentlyBooked;
+  }
+
+ @override
   Widget build(BuildContext context) {
     final panelHeight = MediaQuery.of(context).size.height * _panelHeightFactor;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Home'),
+        title: const Text('Home'),
       ),
       extendBodyBehindAppBar: true,
       body: Stack(
@@ -136,7 +175,7 @@ class _HomePageState extends State<HomePage> {
             child: FlutterMap(
               mapController: _mapController,
               options: MapOptions(
-                initialCenter: _currentLocation ?? LatLng(51.509364, -0.128928),
+                initialCenter: _currentLocation ?? const LatLng(51.509364, -0.128928),
                 initialZoom: 10.0,
                 minZoom: 5.0,
                 maxZoom: 18.0,
@@ -175,9 +214,7 @@ class _HomePageState extends State<HomePage> {
                     circles: [
                       CircleMarker(
                         point: _currentLocation!,
-                        radius: _selectedRadius == double.infinity
-                            ? 0
-                            : _selectedRadius * 1000,
+                        radius: _selectedRadius == double.infinity ? 0 : _selectedRadius * 1000,
                         color: Colors.red.withOpacity(0.3),
                         borderStrokeWidth: 2.0,
                         borderColor: Colors.red,
@@ -346,19 +383,14 @@ class _HomePageState extends State<HomePage> {
                             .where('available', isEqualTo: true)
                             .snapshots(),
                         builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const Center(
-                                child: CircularProgressIndicator());
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator());
                           }
                           if (snapshot.hasError) {
-                            return const Center(
-                                child: Text('Fout bij ophalen items'));
+                            return const Center(child: Text('Fout bij ophalen items'));
                           }
-                          if (!snapshot.hasData ||
-                              snapshot.data!.docs.isEmpty) {
-                            return const Center(
-                                child: Text('Geen items gevonden'));
+                          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                            return const Center(child: Text('Geen items gevonden'));
                           }
 
                           final filteredDocs = snapshot.data!.docs.where((doc) {
@@ -370,36 +402,51 @@ class _HomePageState extends State<HomePage> {
                           }).toList();
 
                           if (filteredDocs.isEmpty) {
-                            return const Center(
-                                child: Text('Geen items binnen deze straal'));
+                            return const Center(child: Text('Geen items binnen deze straal'));
                           }
 
                           return ListView.builder(
                             physics: const ClampingScrollPhysics(),
                             itemCount: filteredDocs.length,
                             itemBuilder: (context, index) {
-                              var item = filteredDocs[index].data()
-                                  as Map<String, dynamic>;
-                              return ListTile(
-                                leading: item['imageUrls'] != null &&
-                                        item['imageUrls'].isNotEmpty
-                                    ? Image.network(
-                                        item['imageUrls'][0],
-                                        width: 50,
-                                        height: 50,
-                                        fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) =>
-                                                const Icon(Icons.error),
-                                      )
-                                    : const Icon(Icons.image),
-                                title: Text(item['title'] ?? 'Geen titel'),
-                                subtitle: Text(
-                                  item['rentOption'] == 'Te huur'
-                                      ? '€${item['pricePerDay']?.toStringAsFixed(2) ?? '0.00'} / dag'
-                                      : 'Gratis (Te leen)',
-                                ),
-                                onTap: () => _showItemDetails(item),
+                              var item = filteredDocs[index].data() as Map<String, dynamic>;
+                              bool isAvailable = _isItemAvailable(item);
+
+                              return FutureBuilder<String>(
+                                future: _getLocationName(item['location'] as GeoPoint?),
+                                builder: (context, locationSnapshot) {
+                                  String locationName = locationSnapshot.data ?? 'Locatie laden...';
+                                  return ListTile(
+                                    leading: item['imageUrls'] != null && item['imageUrls'].isNotEmpty
+                                        ? Image.network(
+                                            item['imageUrls'][0],
+                                            width: 50,
+                                            height: 50,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => const Icon(Icons.error),
+                                          )
+                                        : const Icon(Icons.image),
+                                    title: Text(item['title'] ?? 'Geen titel'),
+                                    subtitle: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item['rentOption'] == 'Te huur'
+                                              ? '€${item['pricePerDay']?.toStringAsFixed(2) ?? '0.00'} / dag'
+                                              : 'Gratis (Te leen)',
+                                        ),
+                                        Text('Locatie: $locationName'),
+                                        Text(
+                                          'Beschikbaarheid: ${isAvailable ? 'Beschikbaar' : 'Niet beschikbaar'}',
+                                          style: TextStyle(
+                                            color: isAvailable ? Colors.green : Colors.red,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    onTap: () => _showItemDetails(item),
+                                  );
+                                },
                               );
                             },
                           );

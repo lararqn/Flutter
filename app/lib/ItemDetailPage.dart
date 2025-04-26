@@ -1,15 +1,185 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:intl/intl.dart';
+import 'package:table_calendar/table_calendar.dart';
 
-class ItemDetailPage extends StatelessWidget {
+class ItemDetailPage extends StatefulWidget {
   final Map<String, dynamic> item;
 
   const ItemDetailPage({super.key, required this.item});
 
   @override
+  _ItemDetailPageState createState() => _ItemDetailPageState();
+}
+
+class _ItemDetailPageState extends State<ItemDetailPage> {
+  DateTime? _startDate;
+  DateTime? _endDate;
+  DateTime _focusedDay = DateTime.now();
+  List<DateTime> _unavailableDates = [];
+  bool _isLoading = false;
+  String? _locationName;
+  bool _isAvailable = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUnavailableDates();
+    _getLocationName();
+    _checkAvailability();
+  }
+
+  Future<void> _loadUnavailableDates() async {
+    final availableDates = widget.item['availableDates'] as List<dynamic>? ?? [];
+    List<DateTime> unavailable = [];
+    for (var range in availableDates) {
+      DateTime start = (range['startDate'] as Timestamp).toDate();
+      DateTime end = (range['endDate'] as Timestamp).toDate();
+      for (DateTime date = start; 
+           date.isBefore(end.add(Duration(days: 1))); 
+           date = date.add(Duration(days: 1))) {
+        unavailable.add(date);
+      }
+    }
+    setState(() {
+      _unavailableDates = unavailable;
+    });
+  }
+
+  Future<void> _getLocationName() async {
+    try {
+      final location = widget.item['location'] as GeoPoint?;
+      if (location != null) {
+        final placemarks = await placemarkFromCoordinates(
+          location.latitude,
+          location.longitude,
+        );
+        if (placemarks.isNotEmpty) {
+          final placemark = placemarks.first;
+          setState(() {
+            _locationName = placemark.locality ?? placemark.subAdministrativeArea ?? 'Onbekende locatie';
+          });
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _locationName = 'Locatie niet beschikbaar';
+      });
+    }
+  }
+
+  void _checkAvailability() {
+    final available = widget.item['available'] as bool? ?? true;
+    final availableDates = widget.item['availableDates'] as List<dynamic>? ?? [];
+    bool isCurrentlyBooked = availableDates.any((range) {
+      DateTime start = (range['startDate'] as Timestamp).toDate();
+      DateTime end = (range['endDate'] as Timestamp).toDate();
+      DateTime now = DateTime.now();
+      return now.isAfter(start.subtract(const Duration(days: 1))) && now.isBefore(end.add(const Duration(days: 1)));
+    });
+    setState(() {
+      _isAvailable = available && !isCurrentlyBooked;
+    });
+  }
+
+  bool _isDateUnavailable(DateTime day) {
+    return _unavailableDates.any((date) =>
+        date.year == day.year &&
+        date.month == day.month &&
+        date.day == day.day);
+  }
+
+  Future<bool> _checkDateConflict(DateTime start, DateTime end) async {
+    final availableDates = widget.item['availableDates'] as List<dynamic>? ?? [];
+    for (var range in availableDates) {
+      DateTime bookedStart = (range['startDate'] as Timestamp).toDate();
+      DateTime bookedEnd = (range['endDate'] as Timestamp).toDate();
+      if (start.isBefore(bookedEnd.add(Duration(days: 1))) && end.isAfter(bookedStart.subtract(Duration(days: 1)))) {
+        return true; 
+      }
+    }
+    return false; 
+  }
+
+  Future<void> _requestRental() async {
+    if (_startDate == null || _endDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecteer een huurperiode.')),
+      );
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Je moet ingelogd zijn om te huren.')),
+      );
+      return;
+    }
+
+    if (user.uid == widget.item['ownerId']) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Je kunt je eigen item niet huren.')),
+      );
+      return;
+    }
+
+    bool hasConflict = await _checkDateConflict(_startDate!, _endDate!);
+    if (hasConflict) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Geselecteerde datums overlappen met een bestaande reservering.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      String itemId = widget.item['id'] ?? await _getItemId();
+
+      await FirebaseFirestore.instance.collection('Reservations').add({
+        'itemId': itemId,
+        'userId': user.uid,
+        'ownerId': widget.item['ownerId'],
+        'startDate': Timestamp.fromDate(_startDate!),
+        'endDate': Timestamp.fromDate(_endDate!),
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Huurverzoek succesvol ingediend!')),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fout bij indienen huurverzoek: $e')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<String> _getItemId() async {
+    var querySnapshot = await FirebaseFirestore.instance
+        .collection('Items')
+        .where('title', isEqualTo: widget.item['title'])
+        .where('ownerId', isEqualTo: widget.item['ownerId'])
+        .get();
+    return querySnapshot.docs.first.id;
+  }
+
+ @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(item['title'] ?? 'Geen titel'),
+        title: Text(widget.item['title'] ?? 'Geen titel'),
         backgroundColor: Colors.blueGrey,
       ),
       body: SingleChildScrollView(
@@ -17,17 +187,17 @@ class ItemDetailPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (item['imageUrls'] != null && item['imageUrls'].isNotEmpty)
+            if (widget.item['imageUrls'] != null && widget.item['imageUrls'].isNotEmpty)
               SizedBox(
                 height: 200,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
-                  itemCount: item['imageUrls'].length,
+                  itemCount: widget.item['imageUrls'].length,
                   itemBuilder: (context, index) {
                     return Padding(
                       padding: const EdgeInsets.only(right: 8.0),
                       child: Image.network(
-                        item['imageUrls'][index],
+                        widget.item['imageUrls'][index],
                         width: 200,
                         height: 200,
                         fit: BoxFit.cover,
@@ -42,36 +212,131 @@ class ItemDetailPage extends StatelessWidget {
               const Icon(Icons.image_not_supported, size: 200),
             const SizedBox(height: 16),
             Text(
-              item['title'] ?? 'Geen titel',
+              widget.item['title'] ?? 'Geen titel',
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'Beschrijving: ${item['description'] ?? 'Geen beschrijving'}',
+              'Beschrijving: ${widget.item['description'] ?? 'Geen beschrijving'}',
               style: const TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 8),
             Text(
-              'Categorie: ${item['category'] ?? 'Onbekend'}',
+              'Categorie: ${widget.item['category'] ?? 'Onbekend'}',
               style: const TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 8),
             Text(
-              'Optie: ${item['rentOption'] ?? 'Te leen'}',
+              'Locatie: ${_locationName ?? 'Locatie laden...'}',
               style: const TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 8),
-            if (item['rentOption'] == 'Te huur') ...[
+            Text(
+              'Beschikbaarheid: ${_isAvailable ? 'Beschikbaar' : 'Niet beschikbaar'}',
+              style: TextStyle(
+                fontSize: 16,
+                color: _isAvailable ? Colors.green : Colors.red,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Optie: ${widget.item['rentOption'] ?? 'Te leen'}',
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            if (widget.item['rentOption'] == 'Te huur') ...[
               Text(
-                'Prijs per dag: €${item['pricePerDay']?.toStringAsFixed(2) ?? '0.00'}',
+                'Prijs per dag: €${widget.item['pricePerDay']?.toStringAsFixed(2) ?? '0.00'}',
                 style: const TextStyle(fontSize: 16),
               ),
               const SizedBox(height: 8),
               Text(
-                'Extra dag: €${item['extraDayPrice']?.toStringAsFixed(2) ?? '0.00'}',
+                'Extra dag: €${widget.item['extraDayPrice']?.toStringAsFixed(2) ?? '0.00'}',
                 style: const TextStyle(fontSize: 16),
               ),
             ],
+            const SizedBox(height: 16),
+            const Text(
+              'Selecteer huurperiode:',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            TableCalendar(
+              firstDay: DateTime.now(),
+              lastDay: DateTime.now().add(const Duration(days: 365)),
+              focusedDay: _focusedDay,
+              selectedDayPredicate: (day) {
+                if (_startDate == null) return false;
+                if (_endDate == null) return isSameDay(day, _startDate);
+                return (day.isAfter(_startDate!.subtract(const Duration(days: 1))) &&
+                    day.isBefore(_endDate!.add(const Duration(days: 1))));
+              },
+              calendarStyle: const CalendarStyle(
+                selectedDecoration: BoxDecoration(
+                  color: Colors.blueGrey,
+                  shape: BoxShape.circle,
+                ),
+                rangeStartDecoration: BoxDecoration(
+                  color: Colors.blueGrey,
+                  shape: BoxShape.circle,
+                ),
+                rangeEndDecoration: BoxDecoration(
+                  color: Colors.blueGrey,
+                  shape: BoxShape.circle,
+                ),
+                withinRangeDecoration: BoxDecoration(
+                  color: Colors.blueGrey,
+                  shape: BoxShape.rectangle,
+                ),
+                disabledDecoration: BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+                disabledTextStyle: TextStyle(color: Colors.white),
+              ),
+              enabledDayPredicate: (day) => !_isDateUnavailable(day),
+              onDaySelected: (selectedDay, focusedDay) {
+                setState(() {
+                  if (_startDate == null || (_startDate != null && _endDate != null)) {
+                    _startDate = selectedDay;
+                    _endDate = null;
+                  } else if (selectedDay.isBefore(_startDate!)) {
+                    _startDate = selectedDay;
+                    _endDate = null;
+                  } else {
+                    _endDate = selectedDay;
+                  }
+                  _focusedDay = focusedDay;
+                });
+              },
+              rangeStartDay: _startDate,
+              rangeEndDay: _endDate,
+            ),
+            const SizedBox(height: 16),
+            if (_startDate != null)
+              Text(
+                'Van: ${DateFormat('dd/MM/yyyy').format(_startDate!)}',
+                style: const TextStyle(fontSize: 16),
+              ),
+            if (_endDate != null)
+              Text(
+                'Tot: ${DateFormat('dd/MM/yyyy').format(_endDate!)}',
+                style: const TextStyle(fontSize: 16),
+              ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _isLoading ? null : _requestRental,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueGrey,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                minimumSize: const Size(double.infinity, 0),
+              ),
+              child: _isLoading
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text(
+                      'Huurverzoek indienen',
+                      style: TextStyle(fontSize: 18, color: Colors.white),
+                    ),
+            ),
           ],
         ),
       ),

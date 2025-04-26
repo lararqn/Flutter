@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:app/ItemDetailPage.dart';
 import 'package:app/index.dart';
 import 'package:app/strings.dart';
@@ -62,88 +61,54 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: FutureBuilder<DocumentSnapshot>(
-              future: FirebaseFirestore.instance.collection('Users').doc(_currentUser?.uid).get(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError || !snapshot.hasData || !snapshot.data!.exists) {
-                  return Column(
-                    children: [
-                      const CircleAvatar(
-                        radius: 40,
-                        child: Icon(Icons.person, size: 40),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        _currentUser?.displayName ?? 'Geen naam',
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _currentUser?.email ?? 'Geen e-mail',
-                        style: const TextStyle(fontSize: 16, color: Colors.grey),
-                      ),
-                    ],
-                  );
-                }
-
-                var userData = snapshot.data!.data() as Map<String, dynamic>;
-                String? photoBase64 = userData['photoBase64'];
-
-                return Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 40,
-                      backgroundImage: photoBase64 != null
-                          ? MemoryImage(
-                              base64Decode(photoBase64.split(',').last),
-                            )
-                          : null,
-                      child: photoBase64 == null
-                          ? const Icon(Icons.person, size: 40)
-                          : null,
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 40,
+                  backgroundImage: _currentUser?.photoURL != null
+                      ? NetworkImage(_currentUser!.photoURL!)
+                      : null,
+                  child: _currentUser?.photoURL == null
+                      ? const Icon(Icons.person, size: 40)
+                      : null,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _currentUser?.displayName ?? 'Geen naam',
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _currentUser?.email ?? 'Geen e-mail',
+                  style: const TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () async {
+                    await FirebaseAuth.instance.signOut();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Uitgelogd')),
+                    );
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (context) => const IndexPage()),
+                      (route) => false,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF383838),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      '${userData['firstName'] ?? ''} ${userData['lastName'] ?? ''}',
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      userData['email'] ?? _currentUser?.email ?? 'Geen e-mail',
-                      style: const TextStyle(fontSize: 16, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () async {
-                        await FirebaseAuth.instance.signOut();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Uitgelogd')),
-                        );
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(builder: (context) => const IndexPage()),
-                          (route) => false,
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF383838),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        minimumSize: const Size(200, 0),
-                      ),
-                      child: const Text(
-                        'Uitloggen',
-                        style: TextStyle(fontSize: 18, color: Colors.white),
-                      ),
-                    ),
-                  ],
-                );
-              },
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    minimumSize: const Size(200, 0),
+                  ),
+                  child: const Text(
+                    'Uitloggen',
+                    style: TextStyle(fontSize: 18, color: Colors.white),
+                  ),
+                ),
+              ],
             ),
           ),
           Expanded(
