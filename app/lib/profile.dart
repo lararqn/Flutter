@@ -1,4 +1,5 @@
 import 'package:app/ItemDetailPage.dart';
+import 'package:app/editItemPage.dart';
 import 'package:app/index.dart';
 import 'package:app/strings.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -33,6 +34,15 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
       context,
       MaterialPageRoute(
         builder: (context) => ItemDetailPage(item: item),
+      ),
+    );
+  }
+
+  void _editItem(Map<String, dynamic> item) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditItemPage(item: item),
       ),
     );
   }
@@ -136,7 +146,11 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                     return ListView.builder(
                       itemCount: items.length,
                       itemBuilder: (context, index) {
-                        var item = items[index].data() as Map<String, dynamic>;
+                        var itemData = items[index].data() as Map<String, dynamic>;
+                        var item = {
+                          ...itemData,
+                          'id': items[index].id, // Include the item ID
+                        };
                         return ListTile(
                           leading: item['imageUrls'] != null && item['imageUrls'].isNotEmpty
                               ? Image.network(
@@ -153,6 +167,10 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                             item['rentOption'] == 'Te huur'
                                 ? '€${item['pricePerDay']?.toStringAsFixed(2) ?? '0.00'} / dag'
                                 : 'Gratis (Te leen)',
+                          ),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.blueGrey),
+                            onPressed: () => _editItem(item),
                           ),
                           onTap: () => _showItemDetails(item),
                         );
@@ -200,7 +218,11 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                               );
                             }
 
-                            var item = itemSnapshot.data!.data() as Map<String, dynamic>;
+                            var itemData = itemSnapshot.data!.data() as Map<String, dynamic>;
+                            var item = {
+                              ...itemData,
+                              'id': itemSnapshot.data!.id,
+                            };
                             return ListTile(
                               leading: item['imageUrls'] != null && item['imageUrls'].isNotEmpty
                                   ? Image.network(
