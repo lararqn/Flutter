@@ -49,11 +49,26 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   }
 
   Future<void> _deleteItem(String itemId) async {
+
+     print('Poging tot verwijderen item met ID: $itemId');
+  print('Huidige gebruiker UID (voor delete): ${_currentUser?.uid}');
+  // Haal het item op uit Firestore om de ownerId te controleren
+  final itemDoc = await FirebaseFirestore.instance.collection('Items').doc(itemId).get();
+  if (itemDoc.exists && itemDoc.data() != null) {
+    final ownerIdFromFirestore = itemDoc.data()!['ownerId'];
+    print('OwnerId van item $itemId in Firestore: $ownerIdFromFirestore');
+  } else {
+    print('Item met ID $itemId niet gevonden in Firestore.');
+    return; // Of handel de situatie afhankelijk van je behoeften
+  }
+
+  // *Nieuwe logregel*
+  final user = FirebaseAuth.instance.currentUser;
+  print('currentUser.uid vlak voor delete: ${user?.uid}');
     try {
-      // Delete the item from Firestore
       await FirebaseFirestore.instance.collection('Items').doc(itemId).delete();
 
-      // Delete associated reservations
+
       final reservationsSnapshot = await FirebaseFirestore.instance
           .collection('Reservations')
           .where('itemId', isEqualTo: itemId)
@@ -103,14 +118,12 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                   return const CircularProgressIndicator();
                 }
                 if (snapshot.hasError) {
-                  print('Error fetching user document: ${snapshot.error}');
                   return const CircleAvatar(
                     radius: 40,
                     child: Icon(Icons.error, size: 40),
                   );
                 }
                 if (!snapshot.hasData || !snapshot.data!.exists) {
-                  print('User document does not exist for UID: ${_currentUser!.uid}');
                   return Column(
                     children: [
                       const CircleAvatar(
@@ -134,7 +147,6 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                 final data = snapshot.data!.data() as Map<String, dynamic>;
                 final photoBase64 = data['photoBase64'] as String?;
 
-                print('Fetched photoBase64: $photoBase64');
 
                 Widget profileImage;
                 if (photoBase64 != null && photoBase64.startsWith('data:image/jpeg;base64,')) {
@@ -146,14 +158,12 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                       backgroundImage: MemoryImage(imageBytes),
                     );
                   } catch (e) {
-                    print('Error decoding base64 string: $e');
                     profileImage = const CircleAvatar(
                       radius: 40,
                       child: Icon(Icons.broken_image, size: 40),
                     );
                   }
                 } else {
-                  print('No valid photoBase64 found');
                   profileImage = const CircleAvatar(
                     radius: 40,
                     child: Icon(Icons.person, size: 40),

@@ -36,7 +36,7 @@ class MyApp extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasData) {
-            return const MainNavigation();
+return const MainNavigation(initialIndex: 0); 
           }
           return const IndexPage();
         },
@@ -46,7 +46,8 @@ class MyApp extends StatelessWidget {
 }
 
 class MainNavigation extends StatefulWidget {
-  const MainNavigation({super.key});
+  final int initialIndex; 
+  const MainNavigation({super.key, this.initialIndex = 0});
 
   @override
   State<MainNavigation> createState() => _MainNavigationState();
@@ -62,6 +63,12 @@ class _MainNavigationState extends State<MainNavigation> {
     InboxPage(),
     ProfilePage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.initialIndex; 
+  }
 
   @override
   Widget build(BuildContext context) {

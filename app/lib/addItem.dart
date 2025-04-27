@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:app/home.dart';
+import 'package:app/main.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -195,9 +196,10 @@ class _AddItemPageState extends State<AddItemPage> {
       const SnackBar(content: Text(AppStrings.addItemSuccess)),
     );
 
-    Navigator.pushReplacement(
+    Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (context) => HomePage()), 
+      MaterialPageRoute(builder: (context) => const MainNavigation(initialIndex: 0)),
+      (route) => false, 
     );
   } catch (e, stackTrace) {
     ScaffoldMessenger.of(context).showSnackBar(
