@@ -98,18 +98,54 @@ class _InboxPageState extends State<InboxPage> with SingleTickerProviderStateMix
   }
 
   Future<void> _deleteReservation(String reservationId) async {
-    try {
-      await FirebaseFirestore.instance.collection('Reservations').doc(reservationId).delete();
+  try {
+    final reservationDoc = await FirebaseFirestore.instance
+        .collection('Reservations')
+        .doc(reservationId)
+        .get();
 
+    if (!reservationDoc.exists) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Reservering verwijderd')),
+        const SnackBar(content: Text('Reservering niet gevonden')),
       );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fout bij verwijderen: $e')),
-      );
+      return;
     }
+
+    final reservationData = reservationDoc.data() as Map<String, dynamic>;
+    final userId = reservationData['userId'] as String;
+    final ownerId = reservationData['ownerId'] as String;
+    final currentUserId = _currentUser!.uid;
+
+    List<String> deletedBy = List<String>.from(reservationData['deletedBy'] ?? []);
+
+    if (!deletedBy.contains(currentUserId)) {
+      deletedBy.add(currentUserId);
+    }
+
+    await FirebaseFirestore.instance
+        .collection('Reservations')
+        .doc(reservationId)
+        .update({
+      'deletedBy': deletedBy,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    if (deletedBy.contains(userId) && deletedBy.contains(ownerId)) {
+      await FirebaseFirestore.instance
+          .collection('Reservations')
+          .doc(reservationId)
+          .delete();
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Reservering verwijderd')),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Fout bij verwijderen: $e')),
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -150,7 +186,15 @@ class _InboxPageState extends State<InboxPage> with SingleTickerProviderStateMix
                 return const Center(child: Text('Geen verzonden reserveringen'));
               }
 
-              final reservations = snapshot.data!.docs;
+              final reservations = snapshot.data!.docs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final deletedBy = List<String>.from(data['deletedBy'] ?? []);
+                return !deletedBy.contains(_currentUser!.uid);
+              }).toList();
+
+              if (reservations.isEmpty) {
+                return const Center(child: Text('Geen verzonden reserveringen'));
+              }
 
               return ListView.builder(
                 itemCount: reservations.length,
@@ -244,7 +288,15 @@ class _InboxPageState extends State<InboxPage> with SingleTickerProviderStateMix
                 return const Center(child: Text('Geen ontvangen reserveringen'));
               }
 
-              final reservations = snapshot.data!.docs;
+              final reservations = snapshot.data!.docs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final deletedBy = List<String>.from(data['deletedBy'] ?? []);
+                return !deletedBy.contains(_currentUser!.uid);
+              }).toList();
+
+              if (reservations.isEmpty) {
+                return const Center(child: Text('Geen ontvangen reserveringen'));
+              }
 
               return ListView.builder(
                 itemCount: reservations.length,
