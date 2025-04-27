@@ -9,7 +9,6 @@ import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_ti
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 
-
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -29,22 +28,6 @@ class _HomePageState extends State<HomePage> {
   double _selectedRadius = 5.0;
   final List<double> _radiusOptions = [5.0, 10.0, 15.0, 20.0, double.infinity];
 
-  // void _handleDragUpdate(DragUpdateDetails details) {
-  //   setState(() {
-  //     _panelHeightFactor -=
-  //         details.delta.dy / MediaQuery.of(context).size.height;
-
-  //     if (_panelHeightFactor >
-  //         (1.0 - _handleHeight / MediaQuery.of(context).size.height)) {
-  //       _panelHeightFactor =
-  //           (1.0 - _handleHeight / MediaQuery.of(context).size.height);
-  //     }
-  //     _panelHeightFactor = _panelHeightFactor.clamp(
-  //       _minPanelHeightFactor,
-  //       _maxPanelHeightFactor,
-  //     );
-  //   });
-  // }
   void _handleDragUpdate(DragUpdateDetails details) {
     setState(() {
       _panelHeightFactor -= details.delta.dy / MediaQuery.of(context).size.height;
@@ -131,7 +114,7 @@ class _HomePageState extends State<HomePage> {
     return distance <= _selectedRadius;
   }
 
-Future<String> _getLocationName(GeoPoint? location) async {
+  Future<String> _getLocationName(GeoPoint? location) async {
     if (location == null) return 'Onbekende locatie';
     try {
       final placemarks = await placemarkFromCoordinates(
@@ -148,19 +131,37 @@ Future<String> _getLocationName(GeoPoint? location) async {
     }
   }
 
+  Future<String> _getOwnerName(String? ownerId) async {
+    if (ownerId == null) return 'Onbekende verhuurder';
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(ownerId)
+          .get();
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        return userData['displayName'] ?? 'Onbekende verhuurder';
+      }
+      return 'Onbekende verhuurder';
+    } catch (e) {
+      return 'Fout bij ophalen verhuurder: $e';
+    }
+  }
+
   bool _isItemAvailable(Map<String, dynamic> item) {
     final available = item['available'] as bool? ?? true;
-    final availableDates = item['availableDates'] as List<dynamic>? ?? [];
-    bool isCurrentlyBooked = availableDates.any((range) {
+    final bookedDates = item['bookedDates'] as List<dynamic>? ?? [];
+    bool isCurrentlyBooked = bookedDates.any((range) {
       DateTime start = (range['startDate'] as Timestamp).toDate();
       DateTime end = (range['endDate'] as Timestamp).toDate();
       DateTime now = DateTime.now();
-      return now.isAfter(start.subtract(const Duration(days: 1))) && now.isBefore(end.add(const Duration(days: 1)));
+      return now.isAfter(start.subtract(const Duration(days: 1))) && 
+             now.isBefore(end.add(const Duration(days: 1)));
     });
     return available && !isCurrentlyBooked;
   }
 
- @override
+  @override
   Widget build(BuildContext context) {
     final panelHeight = MediaQuery.of(context).size.height * _panelHeightFactor;
 
@@ -225,8 +226,7 @@ Future<String> _getLocationName(GeoPoint? location) async {
                 StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('Items')
-                      .where('available', isEqualTo: true)
-                      .snapshots(),
+                      .snapshots(), // Removed where('available', isEqualTo: true)
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const MarkerLayer(markers: []);
@@ -240,7 +240,11 @@ Future<String> _getLocationName(GeoPoint? location) async {
 
                     _markerItems.clear();
                     List<Marker> markers = snapshot.data!.docs.map((doc) {
-                      var item = doc.data() as Map<String, dynamic>;
+                      var itemData = doc.data() as Map<String, dynamic>;
+                      var item = {
+                        ...itemData,
+                        'id': doc.id, // Added item ID
+                      };
                       var location = item['location'] as GeoPoint?;
                       if (location == null) return null;
                       final itemLatLng = LatLng(location.latitude, location.longitude);
@@ -380,8 +384,7 @@ Future<String> _getLocationName(GeoPoint? location) async {
                       child: StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
                             .collection('Items')
-                            .where('available', isEqualTo: true)
-                            .snapshots(),
+                            .snapshots(), // Removed where('available', isEqualTo: true)
                         builder: (context, snapshot) {
                           if (snapshot.connectionState == ConnectionState.waiting) {
                             return const Center(child: CircularProgressIndicator());
@@ -394,7 +397,11 @@ Future<String> _getLocationName(GeoPoint? location) async {
                           }
 
                           final filteredDocs = snapshot.data!.docs.where((doc) {
-                            var item = doc.data() as Map<String, dynamic>;
+                            var itemData = doc.data() as Map<String, dynamic>;
+                            var item = {
+                              ...itemData,
+                              'id': doc.id, // Added item ID
+                            };
                             var location = item['location'] as GeoPoint?;
                             if (location == null) return false;
                             final itemLatLng = LatLng(location.latitude, location.longitude);
@@ -409,13 +416,22 @@ Future<String> _getLocationName(GeoPoint? location) async {
                             physics: const ClampingScrollPhysics(),
                             itemCount: filteredDocs.length,
                             itemBuilder: (context, index) {
-                              var item = filteredDocs[index].data() as Map<String, dynamic>;
+                              var itemData = filteredDocs[index].data() as Map<String, dynamic>;
+                              var item = {
+                                ...itemData,
+                                'id': filteredDocs[index].id, // Added item ID
+                              };
                               bool isAvailable = _isItemAvailable(item);
 
-                              return FutureBuilder<String>(
-                                future: _getLocationName(item['location'] as GeoPoint?),
-                                builder: (context, locationSnapshot) {
-                                  String locationName = locationSnapshot.data ?? 'Locatie laden...';
+                              return FutureBuilder<List<dynamic>>(
+                                future: Future.wait([
+                                  _getLocationName(item['location'] as GeoPoint?),
+                                  _getOwnerName(item['ownerId'] as String?),
+                                ]),
+                                builder: (context, snapshot) {
+                                  String locationName = snapshot.data?[0] ?? 'Locatie laden...';
+                                  String ownerName = snapshot.data?[1] ?? 'Verhuurder laden...';
+
                                   return ListTile(
                                     leading: item['imageUrls'] != null && item['imageUrls'].isNotEmpty
                                         ? Image.network(
@@ -435,6 +451,7 @@ Future<String> _getLocationName(GeoPoint? location) async {
                                               ? '€${item['pricePerDay']?.toStringAsFixed(2) ?? '0.00'} / dag'
                                               : 'Gratis (Te leen)',
                                         ),
+                                        Text('Verhuurder: $ownerName'),
                                         Text('Locatie: $locationName'),
                                         Text(
                                           'Beschikbaarheid: ${isAvailable ? 'Beschikbaar' : 'Niet beschikbaar'}',

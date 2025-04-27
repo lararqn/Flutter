@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:app/strings.dart';
 
 class EditItemPage extends StatefulWidget {
@@ -34,12 +35,14 @@ class _EditItemPageState extends State<EditItemPage> {
   String? _selectedCategory;
   List<String> _categories = [];
   GeoPoint? _itemLocation;
+  String? _locationName;
+  bool _isAvailable = true;
 
   @override
   void initState() {
     super.initState();
     _fetchCategories();
-    _loadItemData();
+    _initializeFields();
   }
 
   Future<void> _fetchCategories() async {
@@ -65,17 +68,73 @@ class _EditItemPageState extends State<EditItemPage> {
     }
   }
 
-  void _loadItemData() {
+  void _initializeFields() {
     _titleController.text = widget.item['title'] ?? '';
     _descriptionController.text = widget.item['description'] ?? '';
-    _rentOption = widget.item['rentOption'] ?? 'Te leen';
-    _priceController.text =
-        widget.item['pricePerDay']?.toString() ?? '';
-    _extraDayPriceController.text =
-        widget.item['extraDayPrice']?.toString() ?? '';
     _selectedCategory = widget.item['category'];
-    _itemLocation = widget.item['location'] as GeoPoint?;
+    _rentOption = widget.item['rentOption'] ?? 'Te leen';
+    _priceController.text = widget.item['pricePerDay']?.toString() ?? '0.0';
+    _extraDayPriceController.text = widget.item['extraDayPrice']?.toString() ?? '0.0';
     _existingImageUrls = List<String>.from(widget.item['imageUrls'] ?? []);
+    _itemLocation = widget.item['location'] as GeoPoint?;
+    _locationName = widget.item['locationName'] ?? 'Locatie niet opgegeven';
+    _isAvailable = widget.item['available'] ?? true;
+    if (_itemLocation == null) {
+      _getCurrentLocation();
+    }
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Locatiediensten zijn uitgeschakeld.')),
+        );
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Locatie permissie geweigerd.')),
+          );
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Locatie permissie permanent geweigerd.')),
+        );
+        return;
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+      String locationName = 'Onbekende locatie';
+      if (placemarks.isNotEmpty) {
+        final placemark = placemarks.first;
+        locationName = placemark.locality ?? placemark.subAdministrativeArea ?? 'Onbekende locatie';
+      }
+
+      setState(() {
+        _itemLocation = GeoPoint(position.latitude, position.longitude);
+        _locationName = locationName;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fout bij ophalen locatie: $e')),
+      );
+    }
   }
 
   Future<void> _pickImage() async {
@@ -124,7 +183,7 @@ class _EditItemPageState extends State<EditItemPage> {
       if (user == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('Je moet ingelogd zijn om een item bij te werken.')),
+              content: Text('Je moet ingelogd zijn om een item te bewerken.')),
         );
         return;
       }
@@ -151,9 +210,7 @@ class _EditItemPageState extends State<EditItemPage> {
         }
       }
 
-      String itemId = await _getItemId();
-
-      await FirebaseFirestore.instance.collection('Items').doc(itemId).update({
+      await FirebaseFirestore.instance.collection('Items').doc(widget.item['id']).update({
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
         'category': _selectedCategory,
@@ -165,6 +222,9 @@ class _EditItemPageState extends State<EditItemPage> {
             : 0.0,
         'rentOption': _rentOption,
         'imageUrls': imageUrls,
+        'location': _itemLocation,
+        'locationName': _locationName,
+        'available': _isAvailable,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
@@ -178,18 +238,9 @@ class _EditItemPageState extends State<EditItemPage> {
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fout bij bijwerken item: $e')),
+        SnackBar(content: Text('Fout bij bewerken item: $e')),
       );
     }
-  }
-
-  Future<String> _getItemId() async {
-    var querySnapshot = await FirebaseFirestore.instance
-        .collection('Items')
-        .where('title', isEqualTo: widget.item['title'])
-        .where('ownerId', isEqualTo: widget.item['ownerId'])
-        .get();
-    return querySnapshot.docs.first.id;
   }
 
   Widget _buildInputField({
@@ -222,8 +273,8 @@ class _EditItemPageState extends State<EditItemPage> {
   }
 
   Widget _buildImageGrid() {
-    final images = (kIsWeb ? _webImageBytesList : _imageFiles).take(3).toList();
-    final existingImages = _existingImageUrls.take(3).toList();
+    final images = (kIsWeb ? _webImageBytesList : _imageFiles).toList();
+    final allImages = [..._existingImageUrls.map((url) => url), ...images];
 
     return GestureDetector(
       onTap: _pickImage,
@@ -235,126 +286,86 @@ class _EditItemPageState extends State<EditItemPage> {
           borderRadius: BorderRadius.circular(4),
           border: Border.all(color: Colors.grey[300]!),
         ),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ...existingImages.map((url) {
-                int index = existingImages.indexOf(url);
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: SizedBox(
-                          width: 90,
-                          height: 90,
-                          child: Image.network(
-                            url,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                const Icon(Icons.error),
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        right: -5,
-                        top: -5,
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _existingImageUrls.removeAt(index);
-                            });
-                          },
-                          child: Container(
-                            width: 20,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.grey,
-                            ),
-                            child: const Icon(
-                              Icons.remove,
-                              color: Colors.white,
-                              size: 14,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-              ...images.map((img) {
-                int index = images.indexOf(img);
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: SizedBox(
-                          width: 90,
-                          height: 90,
-                          child: kIsWeb
-                              ? Image.memory(
-                                  img as Uint8List,
-                                  fit: BoxFit.cover,
-                                )
-                              : Image.file(img as File, fit: BoxFit.cover),
-                        ),
-                      ),
-                      Positioned(
-                        right: -5,
-                        top: -5,
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              if (kIsWeb) {
-                                _webImageBytesList.removeAt(index);
-                              } else {
-                                _imageFiles.removeAt(index);
-                              }
-                            });
-                          },
-                          child: Container(
-                            width: 20,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.grey,
-                            ),
-                            child: const Icon(
-                              Icons.remove,
-                              color: Colors.white,
-                              size: 14,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-              if (existingImages.length + images.length < 3)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: Container(
-                    width: 90,
-                    height: 90,
-                    child: const Icon(
-                      Icons.add_a_photo_rounded,
-                      color: Colors.grey,
-                    ),
-                  ),
+        child: allImages.isEmpty
+            ? const Center(
+                child: Icon(
+                  Icons.add_a_photo_rounded,
+                  color: Colors.grey,
                 ),
-            ],
-          ),
-        ),
+              )
+            : SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: allImages.asMap().entries.map((entry) {
+                    int index = entry.key;
+                    var img = entry.value;
+                    bool isExisting = index < _existingImageUrls.length;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: SizedBox(
+                              width: 90,
+                              height: 90,
+                              child: isExisting
+                                  ? Image.network(
+                                      img as String,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) =>
+                                          const Icon(Icons.error),
+                                    )
+                                  : kIsWeb
+                                      ? Image.memory(
+                                          img as Uint8List,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : Image.file(img as File, fit: BoxFit.cover),
+                            ),
+                          ),
+                          Positioned(
+                            right: -5,
+                            top: -5,
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  if (isExisting) {
+                                    _existingImageUrls.removeAt(index);
+                                  } else {
+                                    int newIndex = index - _existingImageUrls.length;
+                                    if (kIsWeb) {
+                                      _webImageBytesList.removeAt(newIndex);
+                                    } else {
+                                      _imageFiles.removeAt(newIndex);
+                                    }
+                                  }
+                                });
+                              },
+                              child: Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.grey,
+                                ),
+                                child: const Icon(
+                                  Icons.remove,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
       ),
     );
   }
@@ -484,6 +495,30 @@ class _EditItemPageState extends State<EditItemPage> {
     );
   }
 
+  Widget _buildAvailabilityToggle() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            "Beschikbaar",
+            style: TextStyle(fontSize: 16),
+          ),
+          Switch(
+            value: _isAvailable,
+            onChanged: (value) {
+              setState(() {
+                _isAvailable = value;
+              });
+            },
+            activeColor: Colors.blueGrey,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -513,6 +548,7 @@ class _EditItemPageState extends State<EditItemPage> {
               _buildRentOption(),
               _buildExtraPriceFields(),
               _buildCategoryDropdown(),
+              _buildAvailabilityToggle(),
               SizedBox(height: 16),
               Align(
                 alignment: Alignment.bottomCenter,

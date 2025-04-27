@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:app/ItemDetailPage.dart';
 import 'package:app/editItemPage.dart';
 import 'package:app/index.dart';
@@ -47,6 +48,30 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     );
   }
 
+  Future<void> _deleteItem(String itemId) async {
+    try {
+      // Delete the item from Firestore
+      await FirebaseFirestore.instance.collection('Items').doc(itemId).delete();
+
+      // Delete associated reservations
+      final reservationsSnapshot = await FirebaseFirestore.instance
+          .collection('Reservations')
+          .where('itemId', isEqualTo: itemId)
+          .get();
+      for (var doc in reservationsSnapshot.docs) {
+        await doc.reference.delete();
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Item succesvol verwijderd')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fout bij verwijderen item: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_currentUser == null) {
@@ -71,54 +96,112 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundImage: _currentUser?.photoURL != null
-                      ? NetworkImage(_currentUser!.photoURL!)
-                      : null,
-                  child: _currentUser?.photoURL == null
-                      ? const Icon(Icons.person, size: 40)
-                      : null,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _currentUser?.displayName ?? 'Geen naam',
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _currentUser?.email ?? 'Geen e-mail',
-                  style: const TextStyle(fontSize: 16, color: Colors.grey),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () async {
-                    await FirebaseAuth.instance.signOut();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Uitgelogd')),
+            child: FutureBuilder<DocumentSnapshot>(
+              future: FirebaseFirestore.instance.collection('Users').doc(_currentUser!.uid).get(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const CircularProgressIndicator();
+                }
+                if (snapshot.hasError) {
+                  print('Error fetching user document: ${snapshot.error}');
+                  return const CircleAvatar(
+                    radius: 40,
+                    child: Icon(Icons.error, size: 40),
+                  );
+                }
+                if (!snapshot.hasData || !snapshot.data!.exists) {
+                  print('User document does not exist for UID: ${_currentUser!.uid}');
+                  return Column(
+                    children: [
+                      const CircleAvatar(
+                        radius: 40,
+                        child: Icon(Icons.person, size: 40),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _currentUser?.displayName ?? 'Geen naam',
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _currentUser?.email ?? 'Geen e-mail',
+                        style: const TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                    ],
+                  );
+                }
+
+                final data = snapshot.data!.data() as Map<String, dynamic>;
+                final photoBase64 = data['photoBase64'] as String?;
+
+                print('Fetched photoBase64: $photoBase64');
+
+                Widget profileImage;
+                if (photoBase64 != null && photoBase64.startsWith('data:image/jpeg;base64,')) {
+                  try {
+                    final base64String = photoBase64.split(',')[1];
+                    final imageBytes = base64Decode(base64String);
+                    profileImage = CircleAvatar(
+                      radius: 40,
+                      backgroundImage: MemoryImage(imageBytes),
                     );
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (context) => const IndexPage()),
-                      (route) => false,
+                  } catch (e) {
+                    print('Error decoding base64 string: $e');
+                    profileImage = const CircleAvatar(
+                      radius: 40,
+                      child: Icon(Icons.broken_image, size: 40),
                     );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF383838),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                  }
+                } else {
+                  print('No valid photoBase64 found');
+                  profileImage = const CircleAvatar(
+                    radius: 40,
+                    child: Icon(Icons.person, size: 40),
+                  );
+                }
+
+                return Column(
+                  children: [
+                    profileImage,
+                    const SizedBox(height: 16),
+                    Text(
+                      _currentUser?.displayName ?? 'Geen naam',
+                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    minimumSize: const Size(200, 0),
-                  ),
-                  child: const Text(
-                    'Uitloggen',
-                    style: TextStyle(fontSize: 18, color: Colors.white),
-                  ),
-                ),
-              ],
+                    const SizedBox(height: 8),
+                    Text(
+                      _currentUser?.email ?? 'Geen e-mail',
+                      style: const TextStyle(fontSize: 16, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () async {
+                        await FirebaseAuth.instance.signOut();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Uitgelogd')),
+                        );
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(builder: (context) => const IndexPage()),
+                          (route) => false,
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF383838),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        minimumSize: const Size(200, 0),
+                      ),
+                      child: const Text(
+                        'Uitloggen',
+                        style: TextStyle(fontSize: 18, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
           Expanded(
@@ -149,7 +232,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                         var itemData = items[index].data() as Map<String, dynamic>;
                         var item = {
                           ...itemData,
-                          'id': items[index].id, // Include the item ID
+                          'id': items[index].id,
                         };
                         return ListTile(
                           leading: item['imageUrls'] != null && item['imageUrls'].isNotEmpty
@@ -168,9 +251,18 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                                 ? '€${item['pricePerDay']?.toStringAsFixed(2) ?? '0.00'} / dag'
                                 : 'Gratis (Te leen)',
                           ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.blueGrey),
-                            onPressed: () => _editItem(item),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit, color: Colors.blueGrey),
+                                onPressed: () => _editItem(item),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () => _deleteItem(item['id']),
+                              ),
+                            ],
                           ),
                           onTap: () => _showItemDetails(item),
                         );

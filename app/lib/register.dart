@@ -7,6 +7,7 @@ import 'package:app/strings.dart';
 import 'package:app/login.dart';
 import 'package:image_picker/image_picker.dart';
 
+
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
 
@@ -23,7 +24,6 @@ class _AuthPageState extends State<AuthPage> {
   XFile? _profileImage;
   final ImagePicker _picker = ImagePicker();
   bool _passwordVisible = false;
-
 
   bool _isLoading = false;
   String? _emailError;
@@ -42,7 +42,7 @@ class _AuthPageState extends State<AuthPage> {
     return emailRegEx.hasMatch(email);
   }
 
- bool isValidPassword(String password) {
+  bool isValidPassword(String password) {
     return _hasMinLength && _hasUppercase && _hasDigit && _hasSpecialChar;
   }
 
@@ -178,6 +178,7 @@ class _AuthPageState extends State<AuthPage> {
         await FirebaseFirestore.instance.collection('Users').doc(user.uid).set({
           'firstName': firstName,
           'lastName': lastName,
+          'displayName': '$firstName $lastName',
           'birthDate': selectedDate!.toIso8601String(),
           'email': email,
           'photoBase64': photoBase64,
@@ -185,6 +186,8 @@ class _AuthPageState extends State<AuthPage> {
         });
 
         await user.updateDisplayName('$firstName $lastName');
+
+        await FirebaseAuth.instance.signOut();
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -229,7 +232,7 @@ class _AuthPageState extends State<AuthPage> {
         });
       }
     }
-  }
+}
 
   @override
   Widget build(BuildContext context) {

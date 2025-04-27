@@ -18,7 +18,7 @@ class CategoryItemsPage extends StatelessWidget {
   }
 
   Future<String> _getLocationName(GeoPoint? location) async {
-    if (location == null) return 'Onbekende locatie';
+    if (location == null) return 'Locatie niet opgegeven';
     try {
       final placemarks = await placemarkFromCoordinates(
         location.latitude,
@@ -34,14 +34,32 @@ class CategoryItemsPage extends StatelessWidget {
     }
   }
 
+  Future<String> _getOwnerName(String? ownerId) async {
+    if (ownerId == null) return 'Onbekende verhuurder';
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(ownerId)
+          .get();
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        return userData['displayName'] ?? 'Onbekende verhuurder';
+      }
+      return 'Onbekende verhuurder';
+    } catch (e) {
+      return 'Fout bij ophalen verhuurder: $e';
+    }
+  }
+
   bool _isItemAvailable(Map<String, dynamic> item) {
     final available = item['available'] as bool? ?? true;
-    final availableDates = item['availableDates'] as List<dynamic>? ?? [];
-    bool isCurrentlyBooked = availableDates.any((range) {
+    final bookedDates = item['bookedDates'] as List<dynamic>? ?? [];
+    bool isCurrentlyBooked = bookedDates.any((range) {
       DateTime start = (range['startDate'] as Timestamp).toDate();
       DateTime end = (range['endDate'] as Timestamp).toDate();
       DateTime now = DateTime.now();
-      return now.isAfter(start.subtract(const Duration(days: 1))) && now.isBefore(end.add(const Duration(days: 1)));
+      return now.isAfter(start.subtract(const Duration(days: 1))) && 
+             now.isBefore(end.add(const Duration(days: 1)));
     });
     return available && !isCurrentlyBooked;
   }
@@ -56,7 +74,6 @@ class CategoryItemsPage extends StatelessWidget {
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('Items')
-            .where('available', isEqualTo: true)
             .where('category', isEqualTo: category)
             .snapshots(),
         builder: (context, snapshot) {
@@ -75,13 +92,22 @@ class CategoryItemsPage extends StatelessWidget {
           return ListView.builder(
             itemCount: items.length,
             itemBuilder: (context, index) {
-              var item = items[index].data() as Map<String, dynamic>;
+              var itemData = items[index].data() as Map<String, dynamic>;
+              var item = {
+                ...itemData,
+                'id': items[index].id,
+              };
               bool isAvailable = _isItemAvailable(item);
 
-              return FutureBuilder<String>(
-                future: _getLocationName(item['location'] as GeoPoint?),
-                builder: (context, locationSnapshot) {
-                  String locationName = locationSnapshot.data ?? 'Locatie laden...';
+              return FutureBuilder<List<dynamic>>(
+                future: Future.wait([
+                  _getLocationName(item['location'] as GeoPoint?),
+                  _getOwnerName(item['ownerId'] as String?),
+                ]),
+                builder: (context, snapshot) {
+                  String locationName = snapshot.data?[0] ?? 'Locatie laden...';
+                  String ownerName = snapshot.data?[1] ?? 'Verhuurder laden...';
+
                   return ListTile(
                     leading: item['imageUrls'] != null && item['imageUrls'].isNotEmpty
                         ? Image.network(
@@ -102,6 +128,7 @@ class CategoryItemsPage extends StatelessWidget {
                               ? '€${item['pricePerDay']?.toStringAsFixed(2) ?? '0.00'} / dag'
                               : 'Gratis (Te leen)',
                         ),
+                        Text('Verhuurder: $ownerName'),
                         Text('Locatie: $locationName'),
                         Text(
                           'Beschikbaarheid: ${isAvailable ? 'Beschikbaar' : 'Niet beschikbaar'}',

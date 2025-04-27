@@ -18,82 +18,123 @@ class _ItemDetailPageState extends State<ItemDetailPage> {
   DateTime? _startDate;
   DateTime? _endDate;
   DateTime _focusedDay = DateTime.now();
-  List<DateTime> _unavailableDates = [];
+  List<DateTime> _bookedDates = [];
   bool _isLoading = false;
   String? _locationName;
   bool _isAvailable = true;
+  String? _ownerName;
 
   @override
   void initState() {
     super.initState();
-    _loadUnavailableDates();
+    _loadBookedDates();
     _getLocationName();
     _checkAvailability();
+    _getOwnerName();
   }
 
-  Future<void> _loadUnavailableDates() async {
-    final availableDates = widget.item['availableDates'] as List<dynamic>? ?? [];
-    List<DateTime> unavailable = [];
-    for (var range in availableDates) {
+  Future<void> _loadBookedDates() async {
+    final bookedDates = widget.item['bookedDates'] as List<dynamic>? ?? [];
+    List<DateTime> booked = [];
+    for (var range in bookedDates) {
       DateTime start = (range['startDate'] as Timestamp).toDate();
       DateTime end = (range['endDate'] as Timestamp).toDate();
       for (DateTime date = start; 
            date.isBefore(end.add(Duration(days: 1))); 
            date = date.add(Duration(days: 1))) {
-        unavailable.add(date);
+        booked.add(date);
       }
     }
     setState(() {
-      _unavailableDates = unavailable;
+      _bookedDates = booked;
     });
   }
 
   Future<void> _getLocationName() async {
     try {
       final location = widget.item['location'] as GeoPoint?;
-      if (location != null) {
-        final placemarks = await placemarkFromCoordinates(
-          location.latitude,
-          location.longitude,
-        );
-        if (placemarks.isNotEmpty) {
-          final placemark = placemarks.first;
-          setState(() {
-            _locationName = placemark.locality ?? placemark.subAdministrativeArea ?? 'Onbekende locatie';
-          });
-        }
+      if (location == null) {
+        setState(() {
+          _locationName = widget.item['locationName'] ?? 'Locatie niet opgegeven';
+        });
+        return;
+      }
+      final placemarks = await placemarkFromCoordinates(
+        location.latitude,
+        location.longitude,
+      );
+      if (placemarks.isNotEmpty) {
+        final placemark = placemarks.first;
+        setState(() {
+          _locationName = placemark.locality ?? placemark.subAdministrativeArea ?? 'Onbekende locatie';
+        });
+      } else {
+        setState(() {
+          _locationName = 'Onbekende locatie';
+        });
       }
     } catch (e) {
       setState(() {
-        _locationName = 'Locatie niet beschikbaar';
+        _locationName = 'Locatie niet beschikbaar: $e';
+      });
+    }
+  }
+
+  Future<void> _getOwnerName() async {
+    try {
+      final ownerId = widget.item['ownerId'] as String?;
+      if (ownerId == null) {
+        setState(() {
+          _ownerName = 'Onbekende verhuurder';
+        });
+        return;
+      }
+      final userDoc = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(ownerId)
+          .get();
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        setState(() {
+          _ownerName = userData['displayName'] ?? 'Onbekende verhuurder';
+        });
+      } else {
+        setState(() {
+          _ownerName = 'Onbekende verhuurder';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _ownerName = 'Fout bij ophalen verhuurder: $e';
       });
     }
   }
 
   void _checkAvailability() {
     final available = widget.item['available'] as bool? ?? true;
-    final availableDates = widget.item['availableDates'] as List<dynamic>? ?? [];
-    bool isCurrentlyBooked = availableDates.any((range) {
+    final bookedDates = widget.item['bookedDates'] as List<dynamic>? ?? [];
+    bool isCurrentlyBooked = bookedDates.any((range) {
       DateTime start = (range['startDate'] as Timestamp).toDate();
       DateTime end = (range['endDate'] as Timestamp).toDate();
       DateTime now = DateTime.now();
-      return now.isAfter(start.subtract(const Duration(days: 1))) && now.isBefore(end.add(const Duration(days: 1)));
+      return now.isAfter(start.subtract(const Duration(days: 1))) && 
+             now.isBefore(end.add(const Duration(days: 1)));
     });
     setState(() {
       _isAvailable = available && !isCurrentlyBooked;
     });
   }
 
-  bool _isDateUnavailable(DateTime day) {
-    return _unavailableDates.any((date) =>
+  bool _isDateBooked(DateTime day) {
+    return _bookedDates.any((date) =>
         date.year == day.year &&
         date.month == day.month &&
         date.day == day.day);
   }
 
   Future<bool> _checkDateConflict(DateTime start, DateTime end) async {
-    final availableDates = widget.item['availableDates'] as List<dynamic>? ?? [];
-    for (var range in availableDates) {
+    final bookedDates = widget.item['bookedDates'] as List<dynamic>? ?? [];
+    for (var range in bookedDates) {
       DateTime bookedStart = (range['startDate'] as Timestamp).toDate();
       DateTime bookedEnd = (range['endDate'] as Timestamp).toDate();
       if (start.isBefore(bookedEnd.add(Duration(days: 1))) && end.isAfter(bookedStart.subtract(Duration(days: 1)))) {
@@ -139,7 +180,7 @@ class _ItemDetailPageState extends State<ItemDetailPage> {
     });
 
     try {
-      String itemId = widget.item['id'] ?? await _getItemId();
+      String itemId = widget.item['id'] ?? (await _getItemId());
 
       await FirebaseFirestore.instance.collection('Reservations').add({
         'itemId': itemId,
@@ -149,6 +190,7 @@ class _ItemDetailPageState extends State<ItemDetailPage> {
         'endDate': Timestamp.fromDate(_endDate!),
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
+        'deletedBy': [],
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -172,10 +214,13 @@ class _ItemDetailPageState extends State<ItemDetailPage> {
         .where('title', isEqualTo: widget.item['title'])
         .where('ownerId', isEqualTo: widget.item['ownerId'])
         .get();
-    return querySnapshot.docs.first.id;
+    if (querySnapshot.docs.isNotEmpty) {
+      return querySnapshot.docs.first.id;
+    }
+    throw Exception('Item niet gevonden');
   }
 
- @override
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -228,6 +273,11 @@ class _ItemDetailPageState extends State<ItemDetailPage> {
             const SizedBox(height: 8),
             Text(
               'Locatie: ${_locationName ?? 'Locatie laden...'}',
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Verhuurder: ${_ownerName ?? 'Naam laden...'}',
               style: const TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 8),
@@ -293,7 +343,7 @@ class _ItemDetailPageState extends State<ItemDetailPage> {
                 ),
                 disabledTextStyle: TextStyle(color: Colors.white),
               ),
-              enabledDayPredicate: (day) => !_isDateUnavailable(day),
+              enabledDayPredicate: (day) => !_isDateBooked(day),
               onDaySelected: (selectedDay, focusedDay) {
                 setState(() {
                   if (_startDate == null || (_startDate != null && _endDate != null)) {

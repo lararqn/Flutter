@@ -45,7 +45,7 @@ class _InboxPageState extends State<InboxPage> with SingleTickerProviderStateMix
       });
 
       await FirebaseFirestore.instance.collection('Items').doc(itemId).update({
-        'availableDates': FieldValue.arrayUnion([
+        'bookedDates': FieldValue.arrayUnion([
           {
             'startDate': Timestamp.fromDate(startDate),
             'endDate': Timestamp.fromDate(endDate),
@@ -93,6 +93,20 @@ class _InboxPageState extends State<InboxPage> with SingleTickerProviderStateMix
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fout bij annuleren: $e')),
+      );
+    }
+  }
+
+  Future<void> _deleteReservation(String reservationId) async {
+    try {
+      await FirebaseFirestore.instance.collection('Reservations').doc(reservationId).delete();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Reservering verwijderd')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fout bij verwijderen: $e')),
       );
     }
   }
@@ -164,7 +178,11 @@ class _InboxPageState extends State<InboxPage> with SingleTickerProviderStateMix
                         );
                       }
 
-                      var item = itemSnapshot.data!.data() as Map<String, dynamic>;
+                      var itemData = itemSnapshot.data!.data() as Map<String, dynamic>;
+                      var item = {
+                        ...itemData,
+                        'id': itemSnapshot.data!.id,
+                      };
 
                       return ListTile(
                         leading: item['imageUrls'] != null && item['imageUrls'].isNotEmpty
@@ -188,12 +206,20 @@ class _InboxPageState extends State<InboxPage> with SingleTickerProviderStateMix
                             ),
                           ],
                         ),
-                        trailing: status == 'pending' || status == 'approved'
-                            ? IconButton(
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (status == 'pending' || status == 'approved')
+                              IconButton(
                                 icon: const Icon(Icons.cancel, color: Colors.red),
                                 onPressed: () => _cancelReservation(reservationId),
-                              )
-                            : null,
+                              ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.grey),
+                              onPressed: () => _deleteReservation(reservationId),
+                            ),
+                          ],
+                        ),
                         onTap: () => _showItemDetails(item),
                       );
                     },
@@ -246,7 +272,11 @@ class _InboxPageState extends State<InboxPage> with SingleTickerProviderStateMix
                         );
                       }
 
-                      var item = itemSnapshot.data!.data() as Map<String, dynamic>;
+                      var itemData = itemSnapshot.data!.data() as Map<String, dynamic>;
+                      var item = {
+                        ...itemData,
+                        'id': itemSnapshot.data!.id,
+                      };
 
                       return ListTile(
                         leading: item['imageUrls'] != null && item['imageUrls'].isNotEmpty
@@ -270,8 +300,11 @@ class _InboxPageState extends State<InboxPage> with SingleTickerProviderStateMix
                             ),
                           ],
                         ),
-                        trailing: status == 'pending'
-                            ? Row(
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (status == 'pending')
+                              Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   IconButton(
@@ -283,8 +316,13 @@ class _InboxPageState extends State<InboxPage> with SingleTickerProviderStateMix
                                     onPressed: () => _rejectReservation(reservationId),
                                   ),
                                 ],
-                              )
-                            : null,
+                              ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.grey),
+                              onPressed: () => _deleteReservation(reservationId),
+                            ),
+                          ],
+                        ),
                         onTap: () => _showItemDetails(item),
                       );
                     },
