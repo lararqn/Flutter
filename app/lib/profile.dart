@@ -49,40 +49,37 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   }
 
   Future<void> _deleteItem(String itemId) async {
+    // try {
+    await FirebaseFirestore.instance.collection('Items').doc(itemId).delete();
 
-     print('Poging tot verwijderen item met ID: $itemId');
-  print('Huidige gebruiker UID (voor delete): ${_currentUser?.uid}');
-  // Haal het item op uit Firestore om de ownerId te controleren
-  final itemDoc = await FirebaseFirestore.instance.collection('Items').doc(itemId).get();
-  if (itemDoc.exists && itemDoc.data() != null) {
-    final ownerIdFromFirestore = itemDoc.data()!['ownerId'];
-    print('OwnerId van item $itemId in Firestore: $ownerIdFromFirestore');
-  } else {
-    print('Item met ID $itemId niet gevonden in Firestore.');
-    return; // Of handel de situatie afhankelijk van je behoeften
+    final reservationsSnapshot = await FirebaseFirestore.instance
+        .collection('Reservations')
+        .where('itemId', isEqualTo: itemId)
+        .get();
+    for (var doc in reservationsSnapshot.docs) {
+      await doc.reference.delete();
+    }
+    //werkt nog niet zo goed items worden wel verwijderd maar er komt nog een error?
+    // ScaffoldMessenger.of(context).showSnackBar(
+    //   const SnackBar(content: Text('Item succesvol verwijderd')),
+    // );
+    // } catch (e) {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     SnackBar(content: Text('Fout bij verwijderen item: $e')),
+    //   );
+    // }
   }
 
-  // *Nieuwe logregel*
-  final user = FirebaseAuth.instance.currentUser;
-  print('currentUser.uid vlak voor delete: ${user?.uid}');
-    try {
-      await FirebaseFirestore.instance.collection('Items').doc(itemId).delete();
-
-
-      final reservationsSnapshot = await FirebaseFirestore.instance
-          .collection('Reservations')
-          .where('itemId', isEqualTo: itemId)
-          .get();
-      for (var doc in reservationsSnapshot.docs) {
-        await doc.reference.delete();
-      }
-
+  Future<void> _logout() async {
+    await FirebaseAuth.instance.signOut();
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Item succesvol verwijderd')),
+        const SnackBar(content: Text('Uitgelogd')),
       );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fout bij verwijderen item: $e')),
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const IndexPage()),
+        (route) => false,
       );
     }
   }
@@ -118,18 +115,11 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                   return const CircularProgressIndicator();
                 }
                 if (snapshot.hasError) {
-                  return const CircleAvatar(
-                    radius: 40,
-                    child: Icon(Icons.error, size: 40),
-                  );
+                  return const Center(child: Icon(Icons.error, size: 40));
                 }
                 if (!snapshot.hasData || !snapshot.data!.exists) {
                   return Column(
                     children: [
-                      const CircleAvatar(
-                        radius: 40,
-                        child: Icon(Icons.person, size: 40),
-                      ),
                       const SizedBox(height: 16),
                       Text(
                         _currentUser?.displayName ?? 'Geen naam',
@@ -140,39 +130,30 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                         _currentUser?.email ?? 'Geen e-mail',
                         style: const TextStyle(fontSize: 16, color: Colors.grey),
                       ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _logout,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF383838),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          minimumSize: const Size(120, 0),
+                        ),
+                        child: const Text(
+                          'Uitloggen',
+                          style: TextStyle(fontSize: 16, color: Colors.white),
+                        ),
+                      ),
                     ],
                   );
                 }
 
                 final data = snapshot.data!.data() as Map<String, dynamic>;
-                final photoBase64 = data['photoBase64'] as String?;
-
-
-                Widget profileImage;
-                if (photoBase64 != null && photoBase64.startsWith('data:image/jpeg;base64,')) {
-                  try {
-                    final base64String = photoBase64.split(',')[1];
-                    final imageBytes = base64Decode(base64String);
-                    profileImage = CircleAvatar(
-                      radius: 40,
-                      backgroundImage: MemoryImage(imageBytes),
-                    );
-                  } catch (e) {
-                    profileImage = const CircleAvatar(
-                      radius: 40,
-                      child: Icon(Icons.broken_image, size: 40),
-                    );
-                  }
-                } else {
-                  profileImage = const CircleAvatar(
-                    radius: 40,
-                    child: Icon(Icons.person, size: 40),
-                  );
-                }
 
                 return Column(
                   children: [
-                    profileImage,
                     const SizedBox(height: 16),
                     Text(
                       _currentUser?.displayName ?? 'Geen naam',
@@ -185,28 +166,18 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: () async {
-                        await FirebaseAuth.instance.signOut();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Uitgelogd')),
-                        );
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(builder: (context) => const IndexPage()),
-                          (route) => false,
-                        );
-                      },
+                      onPressed: _logout,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF383838),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        minimumSize: const Size(200, 0),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        minimumSize: const Size(120, 0),
                       ),
                       child: const Text(
                         'Uitloggen',
-                        style: TextStyle(fontSize: 18, color: Colors.white),
+                        style: TextStyle(fontSize: 16, color: Colors.white),
                       ),
                     ),
                   ],
@@ -251,8 +222,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                                   width: 50,
                                   height: 50,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(Icons.error),
+                                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.error),
                                 )
                               : const Icon(Icons.image),
                           title: Text(item['title'] ?? 'Geen titel'),
