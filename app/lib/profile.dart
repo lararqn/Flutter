@@ -14,7 +14,8 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStateMixin {
+class _ProfilePageState extends State<ProfilePage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
@@ -33,18 +34,14 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   void _showItemDetails(Map<String, dynamic> item) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => ItemDetailPage(item: item),
-      ),
+      MaterialPageRoute(builder: (context) => ItemDetailPage(item: item)),
     );
   }
 
   void _editItem(Map<String, dynamic> item) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => EditItemPage(item: item),
-      ),
+      MaterialPageRoute(builder: (context) => EditItemPage(item: item)),
     );
   }
 
@@ -52,10 +49,11 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     // try {
     await FirebaseFirestore.instance.collection('Items').doc(itemId).delete();
 
-    final reservationsSnapshot = await FirebaseFirestore.instance
-        .collection('Reservations')
-        .where('itemId', isEqualTo: itemId)
-        .get();
+    final reservationsSnapshot =
+        await FirebaseFirestore.instance
+            .collection('Reservations')
+            .where('itemId', isEqualTo: itemId)
+            .get();
     for (var doc in reservationsSnapshot.docs) {
       await doc.reference.delete();
     }
@@ -73,9 +71,9 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   Future<void> _logout() async {
     await FirebaseAuth.instance.signOut();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Uitgelogd')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Uitgelogd')));
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const IndexPage()),
@@ -98,10 +96,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         title: Text(AppStrings.user),
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: 'Mijn Items'),
-            Tab(text: 'Gereserveerd'),
-          ],
+          tabs: const [Tab(text: 'Mijn Items'), Tab(text: 'Gereserveerd')],
         ),
       ),
       body: Column(
@@ -109,7 +104,11 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: FutureBuilder<DocumentSnapshot>(
-              future: FirebaseFirestore.instance.collection('Users').doc(_currentUser!.uid).get(),
+              future:
+                  FirebaseFirestore.instance
+                      .collection('Users')
+                      .doc(_currentUser!.uid)
+                      .get(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const CircularProgressIndicator();
@@ -117,18 +116,34 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                 if (snapshot.hasError) {
                   return const Center(child: Icon(Icons.error, size: 40));
                 }
-                if (!snapshot.hasData || !snapshot.data!.exists) {
+
+                Widget defaultUserInfo() {
                   return Column(
                     children: [
+                      CircleAvatar(
+                        radius: 40,
+                        backgroundColor: Colors.grey[300],
+                        child: const Icon(
+                          Icons.person,
+                          size: 40,
+                          color: Colors.grey,
+                        ),
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         _currentUser?.displayName ?? 'Geen naam',
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         _currentUser?.email ?? 'Geen e-mail',
-                        style: const TextStyle(fontSize: 16, color: Colors.grey),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton(
@@ -138,7 +153,10 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
                           minimumSize: const Size(120, 0),
                         ),
                         child: const Text(
@@ -150,14 +168,42 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                   );
                 }
 
+                if (!snapshot.hasData || !snapshot.data!.exists) {
+                  return defaultUserInfo();
+                }
+
                 final data = snapshot.data!.data() as Map<String, dynamic>;
+                final photoBase64 = data['photoBase64'] as String?;
 
                 return Column(
                   children: [
+                    photoBase64 != null && photoBase64.isNotEmpty
+                        ? CircleAvatar(
+                          radius: 40,
+                          backgroundImage: MemoryImage(
+                            base64Decode(
+                              photoBase64.startsWith('data:image/jpeg;base64,')
+                                  ? photoBase64.substring(23)
+                                  : photoBase64,
+                            ),
+                          ),
+                        )
+                        : CircleAvatar(
+                          radius: 40,
+                          backgroundColor: Colors.grey[300],
+                          child: const Icon(
+                            Icons.person,
+                            size: 40,
+                            color: Colors.grey,
+                          ),
+                        ),
                     const SizedBox(height: 16),
                     Text(
                       _currentUser?.displayName ?? 'Geen naam',
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -172,7 +218,10 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
                         minimumSize: const Size(120, 0),
                       ),
                       child: const Text(
@@ -190,16 +239,19 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
               controller: _tabController,
               children: [
                 StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('Items')
-                      .where('ownerId', isEqualTo: _currentUser?.uid)
-                      .snapshots(),
+                  stream:
+                      FirebaseFirestore.instance
+                          .collection('Items')
+                          .where('ownerId', isEqualTo: _currentUser?.uid)
+                          .snapshots(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     }
                     if (snapshot.hasError) {
-                      return const Center(child: Text('Fout bij ophalen items'));
+                      return const Center(
+                        child: Text('Fout bij ophalen items'),
+                      );
                     }
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                       return const Center(child: Text('Geen items geüpload'));
@@ -210,21 +262,23 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                     return ListView.builder(
                       itemCount: items.length,
                       itemBuilder: (context, index) {
-                        var itemData = items[index].data() as Map<String, dynamic>;
-                        var item = {
-                          ...itemData,
-                          'id': items[index].id,
-                        };
+                        var itemData =
+                            items[index].data() as Map<String, dynamic>;
+                        var item = {...itemData, 'id': items[index].id};
                         return ListTile(
-                          leading: item['imageUrls'] != null && item['imageUrls'].isNotEmpty
-                              ? Image.network(
-                                  item['imageUrls'][0],
-                                  width: 50,
-                                  height: 50,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.error),
-                                )
-                              : const Icon(Icons.image),
+                          leading:
+                              item['imageUrls'] != null &&
+                                      item['imageUrls'].isNotEmpty
+                                  ? Image.network(
+                                    item['imageUrls'][0],
+                                    width: 50,
+                                    height: 50,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            const Icon(Icons.error),
+                                  )
+                                  : const Icon(Icons.image),
                           title: Text(item['title'] ?? 'Geen titel'),
                           subtitle: Text(
                             item['rentOption'] == 'Te huur'
@@ -235,11 +289,17 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
-                                icon: const Icon(Icons.edit, color: Colors.blueGrey),
+                                icon: const Icon(
+                                  Icons.edit,
+                                  color: Colors.blueGrey,
+                                ),
                                 onPressed: () => _editItem(item),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
+                                icon: const Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
+                                ),
                                 onPressed: () => _deleteItem(item['id']),
                               ),
                             ],
@@ -251,19 +311,24 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                   },
                 ),
                 StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('Reservations')
-                      .where('userId', isEqualTo: _currentUser?.uid)
-                      .snapshots(),
+                  stream:
+                      FirebaseFirestore.instance
+                          .collection('Reservations')
+                          .where('userId', isEqualTo: _currentUser?.uid)
+                          .snapshots(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     }
                     if (snapshot.hasError) {
-                      return const Center(child: Text('Fout bij ophalen reserveringen'));
+                      return const Center(
+                        child: Text('Fout bij ophalen reserveringen'),
+                      );
                     }
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return const Center(child: Text('Geen gereserveerde items'));
+                      return const Center(
+                        child: Text('Geen gereserveerde items'),
+                      );
                     }
 
                     final reservations = snapshot.data!.docs;
@@ -271,41 +336,54 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                     return ListView.builder(
                       itemCount: reservations.length,
                       itemBuilder: (context, index) {
-                        var reservation = reservations[index].data() as Map<String, dynamic>;
+                        var reservation =
+                            reservations[index].data() as Map<String, dynamic>;
                         var itemId = reservation['itemId'];
 
                         return FutureBuilder<DocumentSnapshot>(
-                          future: FirebaseFirestore.instance.collection('Items').doc(itemId).get(),
+                          future:
+                              FirebaseFirestore.instance
+                                  .collection('Items')
+                                  .doc(itemId)
+                                  .get(),
                           builder: (context, itemSnapshot) {
-                            if (itemSnapshot.connectionState == ConnectionState.waiting) {
+                            if (itemSnapshot.connectionState ==
+                                ConnectionState.waiting) {
                               return const ListTile(
                                 leading: CircularProgressIndicator(),
                                 title: Text('Laden...'),
                               );
                             }
-                            if (itemSnapshot.hasError || !itemSnapshot.hasData || !itemSnapshot.data!.exists) {
+                            if (itemSnapshot.hasError ||
+                                !itemSnapshot.hasData ||
+                                !itemSnapshot.data!.exists) {
                               return const ListTile(
                                 leading: Icon(Icons.error),
                                 title: Text('Item niet gevonden'),
                               );
                             }
 
-                            var itemData = itemSnapshot.data!.data() as Map<String, dynamic>;
+                            var itemData =
+                                itemSnapshot.data!.data()
+                                    as Map<String, dynamic>;
                             var item = {
                               ...itemData,
                               'id': itemSnapshot.data!.id,
                             };
                             return ListTile(
-                              leading: item['imageUrls'] != null && item['imageUrls'].isNotEmpty
-                                  ? Image.network(
-                                      item['imageUrls'][0],
-                                      width: 50,
-                                      height: 50,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) =>
-                                          const Icon(Icons.error),
-                                    )
-                                  : const Icon(Icons.image),
+                              leading:
+                                  item['imageUrls'] != null &&
+                                          item['imageUrls'].isNotEmpty
+                                      ? Image.network(
+                                        item['imageUrls'][0],
+                                        width: 50,
+                                        height: 50,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stackTrace) =>
+                                                const Icon(Icons.error),
+                                      )
+                                      : const Icon(Icons.image),
                               title: Text(item['title'] ?? 'Geen titel'),
                               subtitle: Text(
                                 item['rentOption'] == 'Te huur'
