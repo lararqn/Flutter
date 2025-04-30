@@ -38,6 +38,7 @@ class _EditItemPageState extends State<EditItemPage> {
   GeoPoint? _itemLocation;
   String? _locationName;
   bool _isAvailable = true;
+  bool _isLoadingCategories = true;
 
   @override
   void initState() {
@@ -48,19 +49,29 @@ class _EditItemPageState extends State<EditItemPage> {
 
   Future<void> _fetchCategories() async {
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('Categories')
-          .doc('1')
-          .get();
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('Categories')
+              .doc('1')
+              .get();
       if (snapshot.exists) {
         final data = snapshot.data() as Map<String, dynamic>;
-        final categories = List<String>.from(data.keys);
+        final categories = List<String>.from(data.keys).toSet().toList();
         setState(() {
           _categories = categories;
+          _isLoadingCategories = false;
+          if (_selectedCategory != null &&
+              !_categories.contains(_selectedCategory)) {
+            _selectedCategory = null;
+          }
         });
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(AppStrings.noCategoriesFound)));
+        setState(() {
+          _isLoadingCategories = false;
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(AppStrings.noCategoriesFound)));
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -75,7 +86,8 @@ class _EditItemPageState extends State<EditItemPage> {
     _selectedCategory = widget.item['category'];
     _rentOption = widget.item['rentOption'] ?? 'Te leen';
     _priceController.text = widget.item['pricePerDay']?.toString() ?? '0.0';
-    _extraDayPriceController.text = widget.item['extraDayPrice']?.toString() ?? '0.0';
+    _extraDayPriceController.text =
+        widget.item['extraDayPrice']?.toString() ?? '0.0';
     _existingImageUrls = List<String>.from(widget.item['imageUrls'] ?? []);
     _itemLocation = widget.item['location'] as GeoPoint?;
     _locationName = widget.item['locationName'] ?? 'Locatie niet opgegeven';
@@ -108,7 +120,9 @@ class _EditItemPageState extends State<EditItemPage> {
 
       if (permission == LocationPermission.deniedForever) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Locatie permissie permanent geweigerd.')),
+          const SnackBar(
+            content: Text('Locatie permissie permanent geweigerd.'),
+          ),
         );
         return;
       }
@@ -124,7 +138,10 @@ class _EditItemPageState extends State<EditItemPage> {
       String locationName = 'Onbekende locatie';
       if (placemarks.isNotEmpty) {
         final placemark = placemarks.first;
-        locationName = placemark.locality ?? placemark.subAdministrativeArea ?? 'Onbekende locatie';
+        locationName =
+            placemark.locality ??
+            placemark.subAdministrativeArea ??
+            'Onbekende locatie';
       }
 
       setState(() {
@@ -132,9 +149,9 @@ class _EditItemPageState extends State<EditItemPage> {
         _locationName = locationName;
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fout bij ophalen locatie: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Fout bij ophalen locatie: $e')));
     }
   }
 
@@ -166,8 +183,12 @@ class _EditItemPageState extends State<EditItemPage> {
     if (_rentOption == "Te huur") {
       final price = double.tryParse(_priceController.text.replaceAll(',', '.'));
       final extraPrice = double.tryParse(
-          _extraDayPriceController.text.replaceAll(',', '.'));
-      if (price == null || extraPrice == null || price <= 0 || extraPrice <= 0) {
+        _extraDayPriceController.text.replaceAll(',', '.'),
+      );
+      if (price == null ||
+          extraPrice == null ||
+          price <= 0 ||
+          extraPrice <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Vul geldige prijzen in voor verhuur.')),
         );
@@ -176,58 +197,69 @@ class _EditItemPageState extends State<EditItemPage> {
     }
 
     try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Item wordt bijgewerkt...')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Item wordt bijgewerkt...')));
 
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('Je moet ingelogd zijn om een item te bewerken.')),
+            content: Text('Je moet ingelogd zijn om een item te bewerken.'),
+          ),
         );
         return;
       }
 
       List<String> imageUrls = List.from(_existingImageUrls);
-      final storageRef =
-          FirebaseStorage.instance.ref().child('items/${user.uid}');
+      final storageRef = FirebaseStorage.instance.ref().child(
+        'items/${user.uid}',
+      );
 
       if (kIsWeb) {
         for (var bytes in _webImageBytesList) {
-          final ref =
-              storageRef.child('${DateTime.now().millisecondsSinceEpoch}.jpg');
+          final ref = storageRef.child(
+            '${DateTime.now().millisecondsSinceEpoch}.jpg',
+          );
           await ref.putData(bytes);
           final url = await ref.getDownloadURL();
           imageUrls.add(url);
         }
       } else {
         for (var file in _imageFiles) {
-          final ref =
-              storageRef.child('${DateTime.now().millisecondsSinceEpoch}.jpg');
+          final ref = storageRef.child(
+            '${DateTime.now().millisecondsSinceEpoch}.jpg',
+          );
           await ref.putFile(file);
           final url = await ref.getDownloadURL();
           imageUrls.add(url);
         }
       }
 
-      await FirebaseFirestore.instance.collection('Items').doc(widget.item['id']).update({
-        'title': _titleController.text.trim(),
-        'description': _descriptionController.text.trim(),
-        'category': _selectedCategory,
-        'pricePerDay': _rentOption == "Te huur"
-            ? double.parse(_priceController.text.replaceAll(',', '.'))
-            : 0.0,
-        'extraDayPrice': _rentOption == "Te huur"
-            ? double.parse(_extraDayPriceController.text.replaceAll(',', '.'))
-            : 0.0,
-        'rentOption': _rentOption,
-        'imageUrls': imageUrls,
-        'location': _itemLocation,
-        'locationName': _locationName,
-        'available': _isAvailable,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await FirebaseFirestore.instance
+          .collection('Items')
+          .doc(widget.item['id'])
+          .update({
+            'title': _titleController.text.trim(),
+            'description': _descriptionController.text.trim(),
+            'category': _selectedCategory,
+            'pricePerDay':
+                _rentOption == "Te huur"
+                    ? double.parse(_priceController.text.replaceAll(',', '.'))
+                    : 0.0,
+            'extraDayPrice':
+                _rentOption == "Te huur"
+                    ? double.parse(
+                      _extraDayPriceController.text.replaceAll(',', '.'),
+                    )
+                    : 0.0,
+            'rentOption': _rentOption,
+            'imageUrls': imageUrls,
+            'location': _itemLocation,
+            'locationName': _locationName,
+            'available': _isAvailable,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Item succesvol bijgewerkt!')),
@@ -235,13 +267,15 @@ class _EditItemPageState extends State<EditItemPage> {
 
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (context) => const MainNavigation(initialIndex: 0)),
+        MaterialPageRoute(
+          builder: (context) => const MainNavigation(initialIndex: 0),
+        ),
         (route) => false,
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fout bij bewerken item: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Fout bij bewerken item: $e')));
     }
   }
 
@@ -288,86 +322,96 @@ class _EditItemPageState extends State<EditItemPage> {
           borderRadius: BorderRadius.circular(4),
           border: Border.all(color: Colors.grey[300]!),
         ),
-        child: allImages.isEmpty
-            ? const Center(
-                child: Icon(
-                  Icons.add_a_photo_rounded,
-                  color: Colors.grey,
-                ),
-              )
-            : SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: allImages.asMap().entries.map((entry) {
-                    int index = entry.key;
-                    var img = entry.value;
-                    bool isExisting = index < _existingImageUrls.length;
+        child:
+            allImages.isEmpty
+                ? const Center(
+                  child: Icon(Icons.add_a_photo_rounded, color: Colors.grey),
+                )
+                : SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children:
+                        allImages.asMap().entries.map((entry) {
+                          int index = entry.key;
+                          var img = entry.value;
+                          bool isExisting = index < _existingImageUrls.length;
 
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: SizedBox(
-                              width: 90,
-                              height: 90,
-                              child: isExisting
-                                  ? Image.network(
-                                      img as String,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) =>
-                                          const Icon(Icons.error),
-                                    )
-                                  : kIsWeb
-                                      ? Image.memory(
-                                          img as Uint8List,
-                                          fit: BoxFit.cover,
-                                        )
-                                      : Image.file(img as File, fit: BoxFit.cover),
-                            ),
-                          ),
-                          Positioned(
-                            right: -5,
-                            top: -5,
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  if (isExisting) {
-                                    _existingImageUrls.removeAt(index);
-                                  } else {
-                                    int newIndex = index - _existingImageUrls.length;
-                                    if (kIsWeb) {
-                                      _webImageBytesList.removeAt(newIndex);
-                                    } else {
-                                      _imageFiles.removeAt(newIndex);
-                                    }
-                                  }
-                                });
-                              },
-                              child: Container(
-                                width: 20,
-                                height: 20,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.grey,
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: SizedBox(
+                                    width: 90,
+                                    height: 90,
+                                    child:
+                                        isExisting
+                                            ? Image.network(
+                                              img as String,
+                                              fit: BoxFit.cover,
+                                              errorBuilder:
+                                                  (
+                                                    context,
+                                                    error,
+                                                    stackTrace,
+                                                  ) => const Icon(Icons.error),
+                                            )
+                                            : kIsWeb
+                                            ? Image.memory(
+                                              img as Uint8List,
+                                              fit: BoxFit.cover,
+                                            )
+                                            : Image.file(
+                                              img as File,
+                                              fit: BoxFit.cover,
+                                            ),
+                                  ),
                                 ),
-                                child: const Icon(
-                                  Icons.remove,
-                                  color: Colors.white,
-                                  size: 14,
+                                Positioned(
+                                  right: -5,
+                                  top: -5,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        if (isExisting) {
+                                          _existingImageUrls.removeAt(index);
+                                        } else {
+                                          int newIndex =
+                                              index - _existingImageUrls.length;
+                                          if (kIsWeb) {
+                                            _webImageBytesList.removeAt(
+                                              newIndex,
+                                            );
+                                          } else {
+                                            _imageFiles.removeAt(newIndex);
+                                          }
+                                        }
+                                      });
+                                    },
+                                    child: Container(
+                                      width: 20,
+                                      height: 20,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: Colors.grey,
+                                      ),
+                                      child: const Icon(
+                                        Icons.remove,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
+                          );
+                        }).toList(),
+                  ),
                 ),
-              ),
       ),
     );
   }
@@ -386,18 +430,20 @@ class _EditItemPageState extends State<EditItemPage> {
             child: Container(
               padding: EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                color: _rentOption == "Te leen"
-                    ? Colors.blueGrey
-                    : Colors.grey[200],
+                color:
+                    _rentOption == "Te leen"
+                        ? Colors.blueGrey
+                        : Colors.grey[200],
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Center(
                 child: Text(
                   "Te leen",
                   style: TextStyle(
-                    color: _rentOption == "Te leen"
-                        ? Colors.white
-                        : Colors.blueGrey,
+                    color:
+                        _rentOption == "Te leen"
+                            ? Colors.white
+                            : Colors.blueGrey,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -416,18 +462,20 @@ class _EditItemPageState extends State<EditItemPage> {
             child: Container(
               padding: EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                color: _rentOption == "Te huur"
-                    ? Colors.blueGrey
-                    : Colors.grey[200],
+                color:
+                    _rentOption == "Te huur"
+                        ? Colors.blueGrey
+                        : Colors.grey[200],
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Center(
                 child: Text(
                   "Te huur",
                   style: TextStyle(
-                    color: _rentOption == "Te huur"
-                        ? Colors.white
-                        : Colors.blueGrey,
+                    color:
+                        _rentOption == "Te huur"
+                            ? Colors.white
+                            : Colors.blueGrey,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -459,6 +507,31 @@ class _EditItemPageState extends State<EditItemPage> {
   }
 
   Widget _buildCategoryDropdown() {
+    if (_isLoadingCategories) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: TextField(
+          enabled: false,
+          decoration: InputDecoration(
+            labelText: "Categorieën laden...",
+            labelStyle: TextStyle(color: Colors.grey),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: Colors.blueGrey),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            filled: true,
+            fillColor: Colors.grey[200],
+          ),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: DropdownButtonFormField<String>(
@@ -469,7 +542,7 @@ class _EditItemPageState extends State<EditItemPage> {
           });
         },
         items: [
-          DropdownMenuItem<String>(
+          const DropdownMenuItem<String>(
             value: null,
             child: Text('Selecteer een categorie'),
           ),
@@ -493,6 +566,7 @@ class _EditItemPageState extends State<EditItemPage> {
           filled: true,
           fillColor: Colors.grey[200],
         ),
+        hint: Text('Selecteer een categorie'),
       ),
     );
   }
@@ -503,10 +577,7 @@ class _EditItemPageState extends State<EditItemPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text(
-            "Beschikbaar",
-            style: TextStyle(fontSize: 16),
-          ),
+          const Text("Beschikbaar", style: TextStyle(fontSize: 16)),
           Switch(
             value: _isAvailable,
             onChanged: (value) {
