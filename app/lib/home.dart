@@ -19,7 +19,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   double _panelHeightFactor = 0.6;
   final double _minPanelHeightFactor = 0.2;
-  final double _maxPanelHeightFactor = 0.90;
+  final double _maxPanelHeightFactor = 1.0;
   final double _handleHeight = 10.0;
   LatLng? _currentLocation;
   final MapController _mapController = MapController();
@@ -31,7 +31,6 @@ class _HomePageState extends State<HomePage> {
   void _handleDragUpdate(DragUpdateDetails details) {
     setState(() {
       _panelHeightFactor -= details.delta.dy / MediaQuery.of(context).size.height;
-
       if (_panelHeightFactor > (1.0 - _handleHeight / MediaQuery.of(context).size.height)) {
         _panelHeightFactor = (1.0 - _handleHeight / MediaQuery.of(context).size.height);
       }
@@ -155,20 +154,19 @@ class _HomePageState extends State<HomePage> {
       DateTime start = (range['startDate'] as Timestamp).toDate();
       DateTime end = (range['endDate'] as Timestamp).toDate();
       DateTime now = DateTime.now();
-      return now.isAfter(start.subtract(const Duration(days: 1))) && 
-             now.isBefore(end.add(const Duration(days: 1)));
+      return now.isAfter(start.subtract(const Duration(days: 1))) &&
+          now.isBefore(end.add(const Duration(days: 1)));
     });
     return available && !isCurrentlyBooked;
   }
 
   @override
   Widget build(BuildContext context) {
-    final panelHeight = MediaQuery.of(context).size.height * _panelHeightFactor;
+    final double statusBarHeight = MediaQuery.of(context).padding.top;
+    final panelHeight = (MediaQuery.of(context).size.height * _panelHeightFactor) - (_panelHeightFactor == _maxPanelHeightFactor ? statusBarHeight : 0);
+
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Home'),
-      ),
       extendBodyBehindAppBar: true,
       body: Stack(
         children: [
@@ -273,7 +271,7 @@ class _HomePageState extends State<HomePage> {
                             child: const Icon(
                               Icons.location_pin,
                               size: 40,
-                              color: Colors.blueGrey,
+                              color: Color(0xFF333333),
                             ),
                           ),
                         ...markers,
@@ -285,7 +283,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           Positioned(
-            top: 100,
+            top: MediaQuery.of(context).padding.top + 10,
             right: 10,
             child: Column(
               children: [
@@ -293,20 +291,20 @@ class _HomePageState extends State<HomePage> {
                   mini: true,
                   onPressed: _zoomIn,
                   backgroundColor: Colors.white,
-                  child: const Icon(Icons.add, color: Colors.black),
+                  child: const Icon(Icons.add, color: Color(0xFF333333)),
                 ),
                 const SizedBox(height: 8),
                 FloatingActionButton(
                   mini: true,
                   onPressed: _zoomOut,
                   backgroundColor: Colors.white,
-                  child: const Icon(Icons.remove, color: Colors.black),
+                  child: const Icon(Icons.remove, color: Color(0xFF333333)),
                 ),
               ],
             ),
           ),
           Positioned(
-            top: 80,
+            top: MediaQuery.of(context).padding.top + 10,
             left: 10,
             child: Material(
               color: Colors.transparent,
@@ -330,15 +328,14 @@ class _HomePageState extends State<HomePage> {
                   child: SliderTheme(
                     data: SliderTheme.of(context).copyWith(
                       trackHeight: 4.0,
-                      // Pas de positie van de 'label' aan via de valueIndicatorShape
                       valueIndicatorShape: const PaddleSliderValueIndicatorShape(),
                       thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10.0),
                       overlayShape: const RoundSliderOverlayShape(overlayRadius: 20.0),
-                      activeTrackColor: Colors.blue,
-                      inactiveTrackColor: Colors.blue.withOpacity(0.3),
-                      thumbColor: Colors.blue,
-                      overlayColor: Colors.blue.withOpacity(0.2),
-                      valueIndicatorColor: Colors.blueAccent,
+                      activeTrackColor: const Color(0xFF555555),
+                      inactiveTrackColor: const Color(0xFFBBBBBB),
+                      thumbColor: const Color(0xFF444444),
+                      overlayColor: const Color(0xFF444444).withOpacity(0.2),
+                      valueIndicatorColor: const Color(0xFF666666),
                       valueIndicatorTextStyle: const TextStyle(color: Colors.white),
                     ),
                     child: Slider(
@@ -426,8 +423,14 @@ class _HomePageState extends State<HomePage> {
                             return const Center(child: Text('Geen items binnen deze straal'));
                           }
 
-                          return ListView.builder(
-                            physics: const ClampingScrollPhysics(),
+                          return GridView.builder(
+                            padding: const EdgeInsets.all(16.0),
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 16.0,
+                              mainAxisSpacing: 16.0,
+                              childAspectRatio: 0.80,
+                            ),
                             itemCount: filteredDocs.length,
                             itemBuilder: (context, index) {
                               var itemData = filteredDocs[index].data() as Map<String, dynamic>;
@@ -435,7 +438,6 @@ class _HomePageState extends State<HomePage> {
                                 ...itemData,
                                 'id': filteredDocs[index].id,
                               };
-                              bool isAvailable = _isItemAvailable(item);
 
                               return FutureBuilder<List<dynamic>>(
                                 future: Future.wait([
@@ -446,36 +448,103 @@ class _HomePageState extends State<HomePage> {
                                   String locationName = snapshot.data?[0] ?? 'Locatie laden...';
                                   String ownerName = snapshot.data?[1] ?? 'Verhuurder laden...';
 
-                                  return ListTile(
-                                    leading: item['imageUrls'] != null && item['imageUrls'].isNotEmpty
-                                        ? Image.network(
-                                            item['imageUrls'][0],
-                                            width: 50,
-                                            height: 50,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (context, error, stackTrace) => const Icon(Icons.error),
-                                          )
-                                        : const Icon(Icons.image),
-                                    title: Text(item['title'] ?? 'Geen titel'),
-                                    subtitle: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item['rentOption'] == 'Te huur'
-                                              ? '€${item['pricePerDay']?.toStringAsFixed(2) ?? '0.00'} / dag'
-                                              : 'Gratis (Te leen)',
-                                        ),
-                                        Text('Verhuurder: $ownerName'),
-                                        Text('Locatie: $locationName'),
-                                        Text(
-                                          'Beschikbaarheid: ${isAvailable ? 'Beschikbaar' : 'Niet beschikbaar'}',
-                                          style: TextStyle(
-                                            color: isAvailable ? Colors.green : Colors.red,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                  return GestureDetector(
                                     onTap: () => _showItemDetails(item),
+                                    child: Card(
+                                      elevation: 4.0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12.0),
+                                      ),
+                                      clipBehavior: Clip.antiAlias,
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Stack(
+                                            children: [
+                                              Container(
+                                                height: 120,
+                                                width: double.infinity,
+                                                color: Colors.grey[200],
+                                                child: item['imageUrls'] != null && item['imageUrls'].isNotEmpty
+                                                    ? Image.network(
+                                                        item['imageUrls'][0],
+                                                        fit: BoxFit.cover,
+                                                        errorBuilder: (context, error, stackTrace) =>
+                                                            const Center(child: Icon(Icons.image, size: 50, color: Colors.grey)),
+                                                      )
+                                                    : const Center(child: Icon(Icons.image, size: 50, color: Colors.grey)),
+                                              ),
+                                              Positioned(
+                                                bottom: 8,
+                                                right: 8,
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                                  decoration: BoxDecoration(
+                                                    color: item['rentOption'] == 'Te huur' ? Colors.black87 : Colors.green[700],
+                                                    borderRadius: BorderRadius.circular(5),
+                                                  ),
+                                                  child: Text(
+                                                    item['rentOption'] ?? 'Optie',
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          Padding(
+                                            padding: const EdgeInsets.all(8.0),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  item['title'] ?? 'Geen titel',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 16,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  'Verhuurder: $ownerName',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                                Text(
+                                                  'Locatie: $locationName',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  item['rentOption'] == 'Te huur'
+                                                      ? '€${item['pricePerDay']?.toStringAsFixed(2) ?? '0.00'} / dag'
+                                                      : 'Gratis',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: item['rentOption'] == 'Te huur' ? Colors.black : Colors.green,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   );
                                 },
                               );

@@ -25,9 +25,22 @@ class MyApp extends StatelessWidget {
       title: 'Flutter Project',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.blueGrey,
-        colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.blueGrey),
+        primarySwatch: Colors.grey,
+        colorScheme: const ColorScheme.light( 
+          primary: Color(0xFF444444),
+          primaryContainer: Color(0xFF333333), 
+          secondary: Color(0xFF666666),
+          secondaryContainer: Color(0xFF888888),
+          surface: Colors.white,
+          error: Colors.red,
+          onPrimary: Colors.white,
+          onSecondary: Colors.white,
+          onSurface: Colors.black87,
+          onError: Colors.white,
+          brightness: Brightness.light, 
+        ),
         fontFamily: 'Roboto',
+        // ),
       ),
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
@@ -36,7 +49,7 @@ class MyApp extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasData) {
-return const MainNavigation(initialIndex: 0); 
+            return const MainNavigation(initialIndex: 0);
           }
           return const IndexPage();
         },
@@ -46,7 +59,7 @@ return const MainNavigation(initialIndex: 0);
 }
 
 class MainNavigation extends StatefulWidget {
-  final int initialIndex; 
+  final int initialIndex;
   const MainNavigation({super.key, this.initialIndex = 0});
 
   @override
@@ -67,7 +80,7 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   void initState() {
     super.initState();
-    _selectedIndex = widget.initialIndex; 
+    _selectedIndex = widget.initialIndex;
   }
 
   @override
@@ -77,8 +90,8 @@ class _MainNavigationState extends State<MainNavigation> {
       extendBodyBehindAppBar: true,
       body: _pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
-        selectedItemColor: Colors.blueGrey,
-        unselectedItemColor: Colors.grey,
+        selectedItemColor: Theme.of(context).colorScheme.primary,
+        unselectedItemColor: Colors.grey[600], 
         currentIndex: _selectedIndex,
         onTap: (index) {
           setState(() {
