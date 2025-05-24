@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:app/home.dart';
 import 'package:app/main.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -40,6 +39,11 @@ class _EditItemPageState extends State<EditItemPage> {
   bool _isAvailable = true;
   bool _isLoadingCategories = true;
 
+  static const Color _primaryColor = Color(0xFF333333); 
+  static const Color _accentColor = Color(0xFF4A4A4A); 
+  static const Color _borderColor = Color(0xFFDBDBDB); 
+  static const Color _inputFillColor = Color(0xFFFAFAFA); 
+
   @override
   void initState() {
     super.initState();
@@ -49,11 +53,10 @@ class _EditItemPageState extends State<EditItemPage> {
 
   Future<void> _fetchCategories() async {
     try {
-      final snapshot =
-          await FirebaseFirestore.instance
-              .collection('Categories')
-              .doc('1')
-              .get();
+      final snapshot = await FirebaseFirestore.instance
+          .collection('Categories')
+          .doc('1')
+          .get();
       if (snapshot.exists) {
         final data = snapshot.data() as Map<String, dynamic>;
         final categories = List<String>.from(data.keys).toSet().toList();
@@ -250,8 +253,8 @@ class _EditItemPageState extends State<EditItemPage> {
             'extraDayPrice':
                 _rentOption == "Te huur"
                     ? double.parse(
-                      _extraDayPriceController.text.replaceAll(',', '.'),
-                    )
+                        _extraDayPriceController.text.replaceAll(',', '.'),
+                      )
                     : 0.0,
             'rentOption': _rentOption,
             'imageUrls': imageUrls,
@@ -286,204 +289,240 @@ class _EditItemPageState extends State<EditItemPage> {
     TextInputType keyboardType = TextInputType.text,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 12), 
       child: TextField(
         controller: controller,
         maxLines: maxLines,
         keyboardType: keyboardType,
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: TextStyle(color: Colors.grey),
-          focusedBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.blueGrey),
+          labelStyle: const TextStyle(color: _primaryColor),
+          floatingLabelBehavior: FloatingLabelBehavior.auto, 
+          focusedBorder: const OutlineInputBorder(
+            borderSide: BorderSide(color: _accentColor),
+            borderRadius: BorderRadius.all(Radius.circular(8)),
           ),
           enabledBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.grey[300]!),
+            borderSide: BorderSide(color: _borderColor),
+            borderRadius: BorderRadius.all(Radius.circular(8)),
           ),
-          contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           filled: true,
-          fillColor: Colors.grey[200],
+          fillColor: _inputFillColor,
         ),
       ),
     );
   }
 
-  Widget _buildImageGrid() {
+  Widget _buildImageSection() {
     final images = (kIsWeb ? _webImageBytesList : _imageFiles).toList();
-    final allImages = [..._existingImageUrls.map((url) => url), ...images];
+    final allImages = [..._existingImageUrls, ...images];
 
-    return GestureDetector(
-      onTap: _pickImage,
-      child: Container(
-        width: double.infinity,
-        height: 120,
-        decoration: BoxDecoration(
-          color: Colors.grey[200],
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child:
-            allImages.isEmpty
-                ? const Center(
-                  child: Icon(Icons.add_a_photo_rounded, color: Colors.grey),
+    BoxDecoration inputFieldDecoration = BoxDecoration(
+      color: _inputFillColor,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: _borderColor),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 8),
+          allImages.isEmpty
+              ? GestureDetector(
+                  onTap: _pickImage,
+                  child: Container(
+                    width: double.infinity,
+                    height: 120,
+                    decoration: inputFieldDecoration,
+                    child: const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add_a_photo_rounded,
+                              color: _primaryColor, size: 40),
+                          SizedBox(height: 8),
+                          Text(
+                            'Afbeelding toevoegen',
+                            style: TextStyle(color: _primaryColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 )
-                : SingleChildScrollView(
+              : SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children:
-                        allImages.asMap().entries.map((entry) {
-                          int index = entry.key;
-                          var img = entry.value;
-                          bool isExisting = index < _existingImageUrls.length;
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      ...allImages.asMap().entries.map((entry) {
+                        int index = entry.key;
+                        var img = entry.value;
+                        bool isExisting = index < _existingImageUrls.length;
 
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8.0),
-                            child: Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                ClipRRect(
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                width: 90,
+                                height: 90,
+                                decoration: inputFieldDecoration,
+                                child: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                  child: SizedBox(
-                                    width: 90,
-                                    height: 90,
-                                    child:
-                                        isExisting
-                                            ? Image.network(
-                                              img as String,
-                                              fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (
-                                                    context,
-                                                    error,
-                                                    stackTrace,
-                                                  ) => const Icon(Icons.error),
-                                            )
-                                            : kIsWeb
-                                            ? Image.memory(
+                                  child: isExisting
+                                      ? Image.network(
+                                          img as String,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.error),
+                                        )
+                                      : kIsWeb
+                                          ? Image.memory(
                                               img as Uint8List,
                                               fit: BoxFit.cover,
                                             )
-                                            : Image.file(
+                                          : Image.file(
                                               img as File,
                                               fit: BoxFit.cover,
                                             ),
-                                  ),
                                 ),
-                                Positioned(
-                                  right: -5,
-                                  top: -5,
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      setState(() {
-                                        if (isExisting) {
-                                          _existingImageUrls.removeAt(index);
+                              ),
+                              Positioned(
+                                right: -5,
+                                top: -5,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      if (isExisting) {
+                                        _existingImageUrls.removeAt(index);
+                                      } else {
+                                        int newIndex = index - _existingImageUrls.length;
+                                        if (kIsWeb) {
+                                          _webImageBytesList.removeAt(newIndex);
                                         } else {
-                                          int newIndex =
-                                              index - _existingImageUrls.length;
-                                          if (kIsWeb) {
-                                            _webImageBytesList.removeAt(
-                                              newIndex,
-                                            );
-                                          } else {
-                                            _imageFiles.removeAt(newIndex);
-                                          }
+                                          _imageFiles.removeAt(newIndex);
                                         }
-                                      });
-                                    },
-                                    child: Container(
-                                      width: 20,
-                                      height: 20,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: Colors.grey,
-                                      ),
-                                      child: const Icon(
-                                        Icons.remove,
-                                        color: Colors.white,
-                                        size: 14,
-                                      ),
+                                      }
+                                    });
+                                  },
+                                  child: Container(
+                                    width: 20,
+                                    height: 20,
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: _accentColor,
+                                    ),
+                                    child: const Icon(
+                                      Icons.remove,
+                                      color: Colors.white,
+                                      size: 14,
                                     ),
                                   ),
                                 ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                      GestureDetector(
+                        onTap: _pickImage,
+                        child: Container(
+                          width: 90,
+                          height: 90,
+                          margin: const EdgeInsets.only(right: 8.0),
+                          decoration: inputFieldDecoration,
+                          child: const Center(
+                            child: Icon(Icons.add_a_photo_rounded,
+                                color: _primaryColor, size: 30),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+        ],
       ),
     );
   }
 
   Widget _buildRentOption() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.start,
-      children: [
-        Expanded(
-          child: GestureDetector(
-            onTap: () {
-              setState(() {
-                _rentOption = "Te leen";
-              });
-            },
-            child: Container(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color:
-                    _rentOption == "Te leen"
-                        ? Colors.blueGrey
-                        : Colors.grey[200],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Text(
-                  "Te leen",
-                  style: TextStyle(
-                    color:
-                        _rentOption == "Te leen"
-                            ? Colors.white
-                            : Colors.blueGrey,
-                    fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _rentOption = "Te leen";
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color:
+                      _rentOption == "Te leen" ? _primaryColor : _inputFillColor,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: _rentOption == "Te leen"
+                          ? _primaryColor
+                          : _borderColor),
+                ),
+                child: Center(
+                  child: Text(
+                    "Te leen",
+                    style: TextStyle(
+                      color: _rentOption == "Te leen"
+                          ? Colors.white
+                          : _primaryColor,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-        SizedBox(width: 8),
-        Expanded(
-          child: GestureDetector(
-            onTap: () {
-              setState(() {
-                _rentOption = "Te huur";
-              });
-            },
-            child: Container(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color:
-                    _rentOption == "Te huur"
-                        ? Colors.blueGrey
-                        : Colors.grey[200],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Text(
-                  "Te huur",
-                  style: TextStyle(
-                    color:
-                        _rentOption == "Te huur"
-                            ? Colors.white
-                            : Colors.blueGrey,
-                    fontWeight: FontWeight.bold,
+          const SizedBox(width: 8),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _rentOption = "Te huur";
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color:
+                      _rentOption == "Te huur" ? _primaryColor : _inputFillColor,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: _rentOption == "Te huur"
+                          ? _primaryColor
+                          : _borderColor),
+                ),
+                child: Center(
+                  child: Text(
+                    "Te huur",
+                    style: TextStyle(
+                      color: _rentOption == "Te huur"
+                          ? Colors.white
+                          : _primaryColor,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -494,46 +533,53 @@ class _EditItemPageState extends State<EditItemPage> {
           _buildInputField(
             controller: _priceController,
             label: "Prijs per dag",
+            keyboardType: TextInputType.number,
           ),
           _buildInputField(
             controller: _extraDayPriceController,
             label: "Prijs per extra dag",
+            keyboardType: TextInputType.number,
           ),
         ],
       );
     } else {
-      return SizedBox.shrink();
+      return const SizedBox.shrink();
     }
   }
 
   Widget _buildCategoryDropdown() {
     if (_isLoadingCategories) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 12), 
         child: TextField(
           enabled: false,
           decoration: InputDecoration(
             labelText: "Categorieën laden...",
-            labelStyle: TextStyle(color: Colors.grey),
-            focusedBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.blueGrey),
+            labelStyle: const TextStyle(color: _primaryColor),
+            floatingLabelBehavior: FloatingLabelBehavior.auto, 
+            focusedBorder: const OutlineInputBorder(
+              borderSide: BorderSide(color: _accentColor),
+              borderRadius: BorderRadius.all(Radius.circular(8)),
             ),
             enabledBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              borderSide: BorderSide(color: _borderColor),
+              borderRadius: BorderRadius.all(Radius.circular(8)),
             ),
             disabledBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              borderSide: BorderSide(color: _borderColor),
+              borderRadius: BorderRadius.all(Radius.circular(8)),
             ),
-            contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            contentPadding:
+                const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
             filled: true,
-            fillColor: Colors.grey[200],
+            fillColor: _inputFillColor,
           ),
         ),
       );
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 12), 
       child: DropdownButtonFormField<String>(
         value: _selectedCategory,
         onChanged: (newValue) {
@@ -555,39 +601,57 @@ class _EditItemPageState extends State<EditItemPage> {
         ],
         decoration: InputDecoration(
           labelText: "Categorie",
-          labelStyle: TextStyle(color: Colors.grey),
-          focusedBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.blueGrey),
+          labelStyle: const TextStyle(color: _primaryColor),
+          floatingLabelBehavior: FloatingLabelBehavior.auto, 
+          focusedBorder: const OutlineInputBorder(
+            borderSide: BorderSide(color: _accentColor),
+            borderRadius: BorderRadius.all(Radius.circular(8)),
           ),
           enabledBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.grey[300]!),
+            borderSide: BorderSide(color: _borderColor),
+            borderRadius: BorderRadius.all(Radius.circular(8)),
           ),
-          contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           filled: true,
-          fillColor: Colors.grey[200],
+          fillColor: _inputFillColor,
         ),
-        hint: Text('Selecteer een categorie'),
+        hint: const Text('Selecteer een categorie'),
+        style: const TextStyle(color: _primaryColor),
+        dropdownColor: Colors.white,
+        iconEnabledColor: _primaryColor,
       ),
     );
   }
 
   Widget _buildAvailabilityToggle() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text("Beschikbaar", style: TextStyle(fontSize: 16)),
-          Switch(
-            value: _isAvailable,
-            onChanged: (value) {
-              setState(() {
-                _isAvailable = value;
-              });
-            },
-            activeColor: Colors.blueGrey,
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(vertical: 12), 
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+        decoration: BoxDecoration(
+          color: _inputFillColor,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: _borderColor),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              "Beschikbaar",
+              style: TextStyle(fontSize: 16, color: _primaryColor),
+            ),
+            Switch(
+              value: _isAvailable,
+              onChanged: (value) {
+                setState(() {
+                  _isAvailable = value;
+                });
+              },
+              activeColor: _primaryColor,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -595,58 +659,66 @@ class _EditItemPageState extends State<EditItemPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              Center(
-                child: Text(
-                  "Bewerk item",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blueGrey,
-                  ),
-                ),
-              ),
-              SizedBox(height: 50),
-              _buildImageGrid(),
-              _buildInputField(controller: _titleController, label: "Titel"),
-              _buildInputField(
-                controller: _descriptionController,
-                label: "Beschrijving",
-                maxLines: 3,
-              ),
-              _buildRentOption(),
-              _buildExtraPriceFields(),
-              _buildCategoryDropdown(),
-              _buildAvailabilityToggle(),
-              SizedBox(height: 16),
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: ElevatedButton(
-                    onPressed: _updateItem,
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: Size(double.infinity, 60),
-                      backgroundColor: Colors.blueGrey,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      "Bijwerken",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: _primaryColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: const Text(
+          "Bewerk item",
+          style: TextStyle(
+            fontSize: 15,
+            color: _primaryColor,
           ),
+        ),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.white,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Container(
+            color: _borderColor,
+            height: 1.0,
+          ),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildImageSection(),
+            _buildInputField(controller: _titleController, label: "Titel"),
+            _buildInputField(
+              controller: _descriptionController,
+              label: "Beschrijving",
+              maxLines: 3,
+            ),
+            _buildRentOption(),
+            _buildExtraPriceFields(),
+            _buildCategoryDropdown(),
+            _buildAvailabilityToggle(),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _updateItem,
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50),
+                backgroundColor: _primaryColor,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                "Bijwerken",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

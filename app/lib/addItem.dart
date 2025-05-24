@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:app/home.dart';
 import 'package:app/main.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -32,6 +31,12 @@ class _AddItemPageState extends State<AddItemPage> {
   String? _selectedCategory;
   List<String> _categories = [];
   Position? _userLocation;
+  bool _isLoadingCategories = true;
+
+  static const Color _primaryColor = Color(0xFF333333); 
+  static const Color _accentColor = Color(0xFF4A4A4A); 
+  static const Color _borderColor = Color(0xFFDBDBDB); 
+  static const Color _inputFillColor = Color(0xFFFAFAFA); 
 
   @override
   void initState() {
@@ -41,53 +46,77 @@ class _AddItemPageState extends State<AddItemPage> {
   }
 
   Future<void> _fetchCategories() async {
-  try {
-    final snapshot =
-        await FirebaseFirestore.instance
-            .collection('Categories')
-            .doc('1')
-            .get();
-    if (snapshot.exists) {
-      final data = snapshot.data() as Map<String, dynamic>;
-      final categories = List<String>.from(data.keys);
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('Categories')
+          .doc('1')
+          .get();
+      if (snapshot.exists) {
+        final data = snapshot.data() as Map<String, dynamic>;
+        final categories = List<String>.from(data.keys).toSet().toList();
+        setState(() {
+          _categories = categories;
+          _isLoadingCategories = false;
+        });
+      } else {
+        setState(() {
+          _isLoadingCategories = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(AppStrings.noCategoriesFound)));
+      }
+    } catch (e) {
       setState(() {
-        _categories = categories;
+        _isLoadingCategories = false;
       });
-    } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(AppStrings.noCategoriesFound)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${AppStrings.noCategoriesFound}: $e')),
+      );
     }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${AppStrings.noCategoriesFound}: $e')),
-    );
   }
-}
 
   Future<void> _getUserLocation() async {
-    LocationPermission permission = await Geolocator.checkPermission();
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Locatiediensten zijn uitgeschakeld.')),
+      );
+      return Future.error('Locatiediensten zijn uitgeschakeld.');
+    }
+
+    permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Locatietoestemming geweigerd')));
-        return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Locatietoestemming geweigerd.')),
+        );
+        return Future.error('Locatietoestemming geweigerd');
       }
     }
+
     if (permission == LocationPermission.deniedForever) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Locatietoestemming permanent geweigerd')),
+        const SnackBar(content: Text('Locatietoestemming permanent geweigerd.')),
       );
-      return;
+      return Future.error(
+          'Locatietoestemmingen zijn permanent geweigerd, we kunnen de locatie niet aanvragen.');
     }
+
     try {
-      _userLocation = await Geolocator.getCurrentPosition();
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      setState(() {
+        _userLocation = position;
+      });
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('${AppStrings.locationError}$e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${AppStrings.locationError}$e')),
+      );
     }
   }
 
@@ -109,106 +138,106 @@ class _AddItemPageState extends State<AddItemPage> {
   }
 
   Future<void> _saveItem() async {
-  if (_titleController.text.isEmpty ||
-      _selectedCategory == null ||
-      _userLocation == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text(AppStrings.addItemIncomplete)),
-    );
-    return;
-  }
-
-  if ((kIsWeb && _webImageBytesList.isEmpty) ||
-      (!kIsWeb && _imageFiles.isEmpty)) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Voeg minstens één afbeelding toe.')),
-    );
-    return;
-  }
-
-  if (_rentOption == "Te huur") {
-    final price = double.tryParse(_priceController.text.replaceAll(',', '.'));
-    final extraPrice =
-        double.tryParse(_extraDayPriceController.text.replaceAll(',', '.'));
-    if (price == null || extraPrice == null || price <= 0 || extraPrice <= 0) {
+    if (_titleController.text.isEmpty ||
+        _selectedCategory == null ||
+        _userLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vul geldige prijzen in voor verhuur.')),
-      );
-      return;
-    }
-  }
-
-  try {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Item wordt opgeslagen...')),
-    );
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Je moet ingelogd zijn om een item op te slaan.')),
+        const SnackBar(content: Text(AppStrings.addItemIncomplete)),
       );
       return;
     }
 
-    List<String> imageUrls = [];
-    final storageRef = FirebaseStorage.instance.ref().child('items/${user.uid}');
+    if ((kIsWeb && _webImageBytesList.isEmpty) ||
+        (!kIsWeb && _imageFiles.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Voeg minstens één afbeelding toe.')),
+      );
+      return;
+    }
 
-    if (kIsWeb) {
-      for (var bytes in _webImageBytesList) {
-        final ref =
-            storageRef.child('${DateTime.now().millisecondsSinceEpoch}.jpg');
-        await ref.putData(bytes);
-        final url = await ref.getDownloadURL();
-        imageUrls.add(url);
-      }
-    } else {
-      for (var file in _imageFiles) {
-        final ref =
-            storageRef.child('${DateTime.now().millisecondsSinceEpoch}.jpg');
-        await ref.putFile(file);
-        final url = await ref.getDownloadURL();
-        imageUrls.add(url);
+    if (_rentOption == "Te huur") {
+      final price = double.tryParse(_priceController.text.replaceAll(',', '.'));
+      final extraPrice =
+          double.tryParse(_extraDayPriceController.text.replaceAll(',', '.'));
+      if (price == null || extraPrice == null || price <= 0 || extraPrice <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Vul geldige prijzen in voor verhuur.')),
+        );
+        return;
       }
     }
 
-    // Opslaan in firebase database
-    await FirebaseFirestore.instance.collection('Items').add({
-      'title': _titleController.text.trim(),
-      'description': _descriptionController.text.trim(),
-      'category': _selectedCategory,
-      'pricePerDay': _rentOption == "Te huur"
-          ? double.parse(_priceController.text.replaceAll(',', '.'))
-          : 0.0,
-      'extraDayPrice': _rentOption == "Te huur"
-          ? double.parse(_extraDayPriceController.text.replaceAll(',', '.'))
-          : 0.0,
-      'rentOption': _rentOption,
-      'imageUrls': imageUrls,
-      'location': GeoPoint(_userLocation!.latitude, _userLocation!.longitude),
-      'ownerId': user.uid,
-      'available': true,
-      'availableDates': [],
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Item wordt opgeslagen...')),
+      );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text(AppStrings.addItemSuccess)),
-    );
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Je moet ingelogd zijn om een item op te slaan.')),
+        );
+        return;
+      }
 
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const MainNavigation(initialIndex: 0)),
-      (route) => false, 
-    );
-  } catch (e, stackTrace) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${AppStrings.addItemError} $e')),
-    );
+      List<String> imageUrls = [];
+      final storageRef =
+          FirebaseStorage.instance.ref().child('items/${user.uid}');
+
+      if (kIsWeb) {
+        for (var bytes in _webImageBytesList) {
+          final ref =
+              storageRef.child('${DateTime.now().millisecondsSinceEpoch}.jpg');
+          await ref.putData(bytes);
+          final url = await ref.getDownloadURL();
+          imageUrls.add(url);
+        }
+      } else {
+        for (var file in _imageFiles) {
+          final ref =
+              storageRef.child('${DateTime.now().millisecondsSinceEpoch}.jpg');
+          await ref.putFile(file);
+          final url = await ref.getDownloadURL();
+          imageUrls.add(url);
+        }
+      }
+
+      await FirebaseFirestore.instance.collection('Items').add({
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'category': _selectedCategory,
+        'pricePerDay': _rentOption == "Te huur"
+            ? double.parse(_priceController.text.replaceAll(',', '.'))
+            : 0.0,
+        'extraDayPrice': _rentOption == "Te huur"
+            ? double.parse(_extraDayPriceController.text.replaceAll(',', '.'))
+            : 0.0,
+        'rentOption': _rentOption,
+        'imageUrls': imageUrls,
+        'location': GeoPoint(_userLocation!.latitude, _userLocation!.longitude),
+        'ownerId': user.uid,
+        'available': true,
+        'availableDates': [],
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(AppStrings.addItemSuccess)),
+      );
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+            builder: (context) => const MainNavigation(initialIndex: 0)),
+        (route) => false,
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${AppStrings.addItemError} $e')),
+      );
+    }
   }
-}
-
-
 
   Widget _buildInputField({
     required TextEditingController controller,
@@ -217,186 +246,227 @@ class _AddItemPageState extends State<AddItemPage> {
     TextInputType keyboardType = TextInputType.text,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 12), 
       child: TextField(
         controller: controller,
         maxLines: maxLines,
         keyboardType: keyboardType,
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: TextStyle(color: Colors.grey),
-          focusedBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.blueGrey),
+          labelStyle: const TextStyle(color: _primaryColor),
+          floatingLabelBehavior: FloatingLabelBehavior.auto,
+          focusedBorder: const OutlineInputBorder(
+            borderSide: BorderSide(color: _accentColor),
+            borderRadius: BorderRadius.all(Radius.circular(8)),
           ),
           enabledBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.grey[300]!),
+            borderSide: BorderSide(color: _borderColor),
+            borderRadius: BorderRadius.all(Radius.circular(8)),
           ),
-          contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           filled: true,
-          fillColor: Colors.grey[200],
+          fillColor: _inputFillColor,
         ),
       ),
     );
   }
 
-  Widget _buildImageGrid() {
-    final images = (kIsWeb ? _webImageBytesList : _imageFiles).take(3).toList();
+  Widget _buildImageSection() {
+    final images = (kIsWeb ? _webImageBytesList : _imageFiles).toList();
 
-    return GestureDetector(
-      onTap: _pickImage,
-      child: Container(
-        width: double.infinity,
-        height: 120,
-        decoration: BoxDecoration(
-          color: Colors.grey[200],
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ...images.map((img) {
-                int index = images.indexOf(img);
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: Stack(
-                    clipBehavior: Clip.none,
+    BoxDecoration inputFieldDecoration = BoxDecoration(
+      color: _inputFillColor,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: _borderColor),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 8),
+          images.isEmpty
+              ? GestureDetector(
+                  onTap: _pickImage,
+                  child: Container(
+                    width: double.infinity,
+                    height: 120,
+                    decoration: inputFieldDecoration,
+                    child: const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add_a_photo_rounded,
+                              color: _primaryColor, size: 40),
+                          SizedBox(height: 8),
+                          Text(
+                            'Afbeelding toevoegen',
+                            style: TextStyle(color: _primaryColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              : SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
                     children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: SizedBox(
+                      ...images.asMap().entries.map((entry) {
+                        int index = entry.key;
+                        var img = entry.value;
+
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                width: 90,
+                                height: 90,
+                                decoration: inputFieldDecoration,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: kIsWeb
+                                      ? Image.memory(
+                                          img as Uint8List,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : Image.file(
+                                          img as File,
+                                          fit: BoxFit.cover,
+                                        ),
+                                ),
+                              ),
+                              Positioned(
+                                right: -5,
+                                top: -5,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      if (kIsWeb) {
+                                        _webImageBytesList.removeAt(index);
+                                      } else {
+                                        _imageFiles.removeAt(index);
+                                      }
+                                    });
+                                  },
+                                  child: Container(
+                                    width: 20,
+                                    height: 20,
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: _accentColor,
+                                    ),
+                                    child: const Icon(
+                                      Icons.remove,
+                                      color: Colors.white,
+                                      size: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                      GestureDetector(
+                        onTap: _pickImage,
+                        child: Container(
                           width: 90,
                           height: 90,
-                          child:
-                              kIsWeb
-                                  ? Image.memory(
-                                    img as Uint8List,
-                                    fit: BoxFit.cover,
-                                  )
-                                  : Image.file(img as File, fit: BoxFit.cover),
-                        ),
-                      ),
-                      Positioned(
-                        right: -5,
-                        top: -5,
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              if (kIsWeb) {
-                                _webImageBytesList.removeAt(index);
-                              } else {
-                                _imageFiles.removeAt(index);
-                              }
-                            });
-                          },
-                          child: Container(
-                            width: 20,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.grey,
-                            ),
-                            child: const Icon(
-                              Icons.remove,
-                              color: Colors.white,
-                              size: 14,
-                            ),
+                          margin: const EdgeInsets.only(right: 8.0),
+                          decoration: inputFieldDecoration,
+                          child: const Center(
+                            child: Icon(Icons.add_a_photo_rounded,
+                                color: _primaryColor, size: 30),
                           ),
                         ),
                       ),
                     ],
                   ),
-                );
-              }),
-              if (images.length < 3)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: Container(
-                    width: 90,
-                    height: 90,
-                    child: const Icon(
-                      Icons.add_a_photo_rounded,
-                      color: Colors.grey,
-                    ),
-                  ),
                 ),
-            ],
-          ),
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildRentOption() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.start,
-      children: [
-        Expanded(
-          child: GestureDetector(
-            onTap: () {
-              setState(() {
-                _rentOption = "Te leen";
-              });
-            },
-            child: Container(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color:
-                    _rentOption == "Te leen"
-                        ? Colors.blueGrey
-                        : Colors.grey[200],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Text(
-                  "Te leen",
-                  style: TextStyle(
-                    color:
-                        _rentOption == "Te leen"
-                            ? Colors.white
-                            : Colors.blueGrey,
-                    fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12.0), 
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _rentOption = "Te leen";
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color:
+                      _rentOption == "Te leen" ? _primaryColor : _inputFillColor,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: _rentOption == "Te leen"
+                          ? _primaryColor
+                          : _borderColor),
+                ),
+                child: Center(
+                  child: Text(
+                    "Te leen",
+                    style: TextStyle(
+                      color: _rentOption == "Te leen"
+                          ? Colors.white
+                          : _primaryColor,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-        SizedBox(width: 8),
-        Expanded(
-          child: GestureDetector(
-            onTap: () {
-              setState(() {
-                _rentOption = "Te huur";
-              });
-            },
-            child: Container(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color:
-                    _rentOption == "Te huur"
-                        ? Colors.blueGrey
-                        : Colors.grey[200],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Text(
-                  "Te huur",
-                  style: TextStyle(
-                    color:
-                        _rentOption == "Te huur"
-                            ? Colors.white
-                            : Colors.blueGrey,
-                    fontWeight: FontWeight.bold,
+          const SizedBox(width: 8),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _rentOption = "Te huur";
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color:
+                      _rentOption == "Te huur" ? _primaryColor : _inputFillColor,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: _rentOption == "Te huur"
+                          ? _primaryColor
+                          : _borderColor),
+                ),
+                child: Center(
+                  child: Text(
+                    "Te huur",
+                    style: TextStyle(
+                      color: _rentOption == "Te huur"
+                          ? Colors.white
+                          : _primaryColor,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -407,21 +477,53 @@ class _AddItemPageState extends State<AddItemPage> {
           _buildInputField(
             controller: _priceController,
             label: "Prijs per dag",
+            keyboardType: TextInputType.number,
           ),
           _buildInputField(
             controller: _extraDayPriceController,
             label: "Prijs per extra dag",
+            keyboardType: TextInputType.number,
           ),
         ],
       );
     } else {
-      return SizedBox.shrink();
+      return const SizedBox.shrink();
     }
   }
 
   Widget _buildCategoryDropdown() {
+    if (_isLoadingCategories) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12), 
+        child: TextField(
+          enabled: false,
+          decoration: InputDecoration(
+            labelText: "Categorieën laden...",
+            labelStyle: const TextStyle(color: _primaryColor),
+            floatingLabelBehavior: FloatingLabelBehavior.auto, 
+            focusedBorder: const OutlineInputBorder(
+              borderSide: BorderSide(color: _accentColor),
+              borderRadius: BorderRadius.all(Radius.circular(8)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: _borderColor),
+              borderRadius: BorderRadius.all(Radius.circular(8)),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: _borderColor),
+              borderRadius: BorderRadius.all(Radius.circular(8)),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            filled: true,
+            fillColor: _inputFillColor,
+          ),
+        ),
+      );
+    }
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: DropdownButtonFormField<String>(
         value: _selectedCategory,
         onChanged: (newValue) {
@@ -430,7 +532,7 @@ class _AddItemPageState extends State<AddItemPage> {
           });
         },
         items: [
-          DropdownMenuItem<String>(
+          const DropdownMenuItem<String>(
             value: null,
             child: Text('Selecteer een categorie'),
           ),
@@ -443,17 +545,25 @@ class _AddItemPageState extends State<AddItemPage> {
         ],
         decoration: InputDecoration(
           labelText: "Categorie",
-          labelStyle: TextStyle(color: Colors.grey),
-          focusedBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.blueGrey),
+          labelStyle: const TextStyle(color: _primaryColor),
+          floatingLabelBehavior: FloatingLabelBehavior.auto, 
+          focusedBorder: const OutlineInputBorder(
+            borderSide: BorderSide(color: _accentColor),
+            borderRadius: BorderRadius.all(Radius.circular(8)),
           ),
           enabledBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.grey[300]!),
+            borderSide: BorderSide(color: _borderColor),
+            borderRadius: BorderRadius.all(Radius.circular(8)),
           ),
-          contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           filled: true,
-          fillColor: Colors.grey[200],
+          fillColor: _inputFillColor,
         ),
+        hint: const Text('Selecteer een categorie'),
+        style: const TextStyle(color: _primaryColor),
+        dropdownColor: Colors.white,
+        iconEnabledColor: _primaryColor,
       ),
     );
   }
@@ -461,57 +571,65 @@ class _AddItemPageState extends State<AddItemPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              Center(
-                child: Text(
-                  "Voeg een nieuw item toe",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blueGrey,
-                  ),
-                ),
-              ),
-              SizedBox(height: 50),
-              _buildImageGrid(),
-              _buildInputField(controller: _titleController, label: "Titel"),
-              _buildInputField(
-                controller: _descriptionController,
-                label: "Beschrijving",
-                maxLines: 3,
-              ),
-              _buildRentOption(),
-              _buildExtraPriceFields(),
-              _buildCategoryDropdown(),
-              SizedBox(height: 16),
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: ElevatedButton(
-                    onPressed: _saveItem,
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: Size(double.infinity, 60),
-                      backgroundColor: Colors.blueGrey,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      "Opslaan",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: _primaryColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: const Text(
+          "Voeg een nieuw item toe",
+          style: TextStyle(
+            fontSize: 15,
+            color: _primaryColor,
           ),
+        ),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.white,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Container(
+            color: _borderColor,
+            height: 1.0,
+          ),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildImageSection(),
+            _buildInputField(controller: _titleController, label: "Titel"),
+            _buildInputField(
+              controller: _descriptionController,
+              label: "Beschrijving",
+              maxLines: 3,
+            ),
+            _buildRentOption(),
+            _buildExtraPriceFields(),
+            _buildCategoryDropdown(),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _saveItem,
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50),
+                backgroundColor: _primaryColor,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                "Opslaan",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
