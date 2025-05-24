@@ -26,7 +26,7 @@ class _HomePageState extends State<HomePage> {
 
   final List<MapEntry<Marker, Map<String, dynamic>>> _markerItems = [];
   double _selectedRadius = 5.0;
-  final List<double> _radiusOptions = [5.0, 10.0, 15.0, 20.0, double.infinity];
+  final double _maxSliderRadius = 20.0;
 
   void _handleDragUpdate(DragUpdateDetails details) {
     setState(() {
@@ -109,7 +109,7 @@ class _HomePageState extends State<HomePage> {
       itemLocation,
     );
 
-    if (_selectedRadius == double.infinity) return true;
+    if (_selectedRadius >= _maxSliderRadius) return true;
 
     return distance <= _selectedRadius;
   }
@@ -215,7 +215,7 @@ class _HomePageState extends State<HomePage> {
                     circles: [
                       CircleMarker(
                         point: _currentLocation!,
-                        radius: _selectedRadius == double.infinity ? 0 : _selectedRadius * 1000,
+                        radius: _selectedRadius >= _maxSliderRadius ? 50000 : _selectedRadius * 1000,
                         color: Colors.red.withOpacity(0.3),
                         borderStrokeWidth: 2.0,
                         borderColor: Colors.red,
@@ -226,7 +226,7 @@ class _HomePageState extends State<HomePage> {
                 StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('Items')
-                      .snapshots(), // Removed where('available', isEqualTo: true)
+                      .snapshots(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const MarkerLayer(markers: []);
@@ -243,7 +243,7 @@ class _HomePageState extends State<HomePage> {
                       var itemData = doc.data() as Map<String, dynamic>;
                       var item = {
                         ...itemData,
-                        'id': doc.id, // Added item ID
+                        'id': doc.id,
                       };
                       var location = item['location'] as GeoPoint?;
                       if (location == null) return null;
@@ -311,7 +311,9 @@ class _HomePageState extends State<HomePage> {
             child: Material(
               color: Colors.transparent,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                width: 60,
+                height: 200,
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
@@ -323,25 +325,37 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ],
                 ),
-                child: DropdownButton<double>(
-                  value: _selectedRadius,
-                  onChanged: (double? newValue) {
-                    if (newValue != null) {
-                      setState(() {
-                        _selectedRadius = newValue;
-                      });
-                    }
-                  },
-                  items: _radiusOptions.map((double radius) {
-                    return DropdownMenuItem<double>(
-                      value: radius,
-                      child: Text(
-                        radius == double.infinity ? '>20 km' : '${radius.toInt()} km',
-                      ),
-                    );
-                  }).toList(),
-                  underline: const SizedBox(),
-                  icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+                child: RotatedBox(
+                  quarterTurns: 1,
+                  child: SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 4.0,
+                      // Pas de positie van de 'label' aan via de valueIndicatorShape
+                      valueIndicatorShape: const PaddleSliderValueIndicatorShape(),
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10.0),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 20.0),
+                      activeTrackColor: Colors.blue,
+                      inactiveTrackColor: Colors.blue.withOpacity(0.3),
+                      thumbColor: Colors.blue,
+                      overlayColor: Colors.blue.withOpacity(0.2),
+                      valueIndicatorColor: Colors.blueAccent,
+                      valueIndicatorTextStyle: const TextStyle(color: Colors.white),
+                    ),
+                    child: Slider(
+                      value: _selectedRadius,
+                      min: 5.0,
+                      max: _maxSliderRadius,
+                      divisions: (_maxSliderRadius - 5).toInt(),
+                      label: _selectedRadius >= _maxSliderRadius
+                          ? '>20 km'
+                          : '${_selectedRadius.toInt()} km',
+                      onChanged: (double newValue) {
+                        setState(() {
+                          _selectedRadius = newValue;
+                        });
+                      },
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -384,7 +398,7 @@ class _HomePageState extends State<HomePage> {
                       child: StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
                             .collection('Items')
-                            .snapshots(), // Removed where('available', isEqualTo: true)
+                            .snapshots(),
                         builder: (context, snapshot) {
                           if (snapshot.connectionState == ConnectionState.waiting) {
                             return const Center(child: CircularProgressIndicator());
@@ -400,7 +414,7 @@ class _HomePageState extends State<HomePage> {
                             var itemData = doc.data() as Map<String, dynamic>;
                             var item = {
                               ...itemData,
-                              'id': doc.id, // Added item ID
+                              'id': doc.id,
                             };
                             var location = item['location'] as GeoPoint?;
                             if (location == null) return false;
@@ -419,7 +433,7 @@ class _HomePageState extends State<HomePage> {
                               var itemData = filteredDocs[index].data() as Map<String, dynamic>;
                               var item = {
                                 ...itemData,
-                                'id': filteredDocs[index].id, // Added item ID
+                                'id': filteredDocs[index].id,
                               };
                               bool isAvailable = _isItemAvailable(item);
 
