@@ -57,15 +57,7 @@ class _ProfilePageState extends State<ProfilePage>
     for (var doc in reservationsSnapshot.docs) {
       await doc.reference.delete();
     }
-    //werkt nog niet zo goed items worden wel verwijderd maar er komt nog een error?
-    // ScaffoldMessenger.of(context).showSnackBar(
-    //   const SnackBar(content: Text('Item succesvol verwijderd')),
-    // );
-    // } catch (e) {
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(content: Text('Fout bij verwijderen item: $e')),
-    //   );
-    // }
+ 
   }
 
   Future<void> _logout() async {
@@ -107,7 +99,7 @@ class _ProfilePageState extends State<ProfilePage>
               future:
                   FirebaseFirestore.instance
                       .collection('Users')
-                      .doc(_currentUser!.uid)
+                      .doc(_currentUser.uid)
                       .get(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -131,7 +123,7 @@ class _ProfilePageState extends State<ProfilePage>
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        _currentUser?.displayName ?? 'Geen naam',
+                        _currentUser.displayName ?? 'Geen naam',
                         style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
@@ -139,7 +131,7 @@ class _ProfilePageState extends State<ProfilePage>
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _currentUser?.email ?? 'Geen e-mail',
+                        _currentUser.email ?? 'Geen e-mail',
                         style: const TextStyle(
                           fontSize: 16,
                           color: Colors.grey,
@@ -199,7 +191,7 @@ class _ProfilePageState extends State<ProfilePage>
                         ),
                     const SizedBox(height: 16),
                     Text(
-                      _currentUser?.displayName ?? 'Geen naam',
+                      _currentUser.displayName ?? 'Geen naam',
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -207,7 +199,7 @@ class _ProfilePageState extends State<ProfilePage>
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _currentUser?.email ?? 'Geen e-mail',
+                      _currentUser.email ?? 'Geen e-mail',
                       style: const TextStyle(fontSize: 16, color: Colors.grey),
                     ),
                     const SizedBox(height: 16),
@@ -242,7 +234,7 @@ class _ProfilePageState extends State<ProfilePage>
                   stream:
                       FirebaseFirestore.instance
                           .collection('Items')
-                          .where('ownerId', isEqualTo: _currentUser?.uid)
+                          .where('ownerId', isEqualTo: _currentUser.uid)
                           .snapshots(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
@@ -314,7 +306,7 @@ class _ProfilePageState extends State<ProfilePage>
                   stream:
                       FirebaseFirestore.instance
                           .collection('Reservations')
-                          .where('userId', isEqualTo: _currentUser?.uid)
+                          .where('userId', isEqualTo: _currentUser.uid)
                           .snapshots(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {

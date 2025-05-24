@@ -147,19 +147,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  bool _isItemAvailable(Map<String, dynamic> item) {
-    final available = item['available'] as bool? ?? true;
-    final bookedDates = item['bookedDates'] as List<dynamic>? ?? [];
-    bool isCurrentlyBooked = bookedDates.any((range) {
-      DateTime start = (range['startDate'] as Timestamp).toDate();
-      DateTime end = (range['endDate'] as Timestamp).toDate();
-      DateTime now = DateTime.now();
-      return now.isAfter(start.subtract(const Duration(days: 1))) &&
-          now.isBefore(end.add(const Duration(days: 1)));
-    });
-    return available && !isCurrentlyBooked;
-  }
-
   @override
   Widget build(BuildContext context) {
     final double statusBarHeight = MediaQuery.of(context).padding.top;

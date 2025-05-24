@@ -173,7 +173,7 @@ class _InboxPageState extends State<InboxPage> with SingleTickerProviderStateMix
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('Reservations')
-                .where('userId', isEqualTo: _currentUser!.uid)
+                .where('userId', isEqualTo: _currentUser.uid)
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -189,7 +189,7 @@ class _InboxPageState extends State<InboxPage> with SingleTickerProviderStateMix
               final reservations = snapshot.data!.docs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 final deletedBy = List<String>.from(data['deletedBy'] ?? []);
-                return !deletedBy.contains(_currentUser!.uid);
+                return !deletedBy.contains(_currentUser.uid);
               }).toList();
 
               if (reservations.isEmpty) {
@@ -275,7 +275,7 @@ class _InboxPageState extends State<InboxPage> with SingleTickerProviderStateMix
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('Reservations')
-                .where('ownerId', isEqualTo: _currentUser!.uid)
+                .where('ownerId', isEqualTo: _currentUser.uid)
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -291,7 +291,7 @@ class _InboxPageState extends State<InboxPage> with SingleTickerProviderStateMix
               final reservations = snapshot.data!.docs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 final deletedBy = List<String>.from(data['deletedBy'] ?? []);
-                return !deletedBy.contains(_currentUser!.uid);
+                return !deletedBy.contains(_currentUser.uid);
               }).toList();
 
               if (reservations.isEmpty) {

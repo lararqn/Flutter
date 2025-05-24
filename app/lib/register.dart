@@ -431,12 +431,12 @@ class _AuthPageState extends State<AuthPage> {
                                 'Minimaal 8 tekens',
                                 style: TextStyle(
                                   color: _hasMinLength ? Colors.green : Colors.grey,
-                                  fontSize: 14,
+                                  fontSize: 10,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
                           Row(
                             children: [
                               Icon(
@@ -449,7 +449,7 @@ class _AuthPageState extends State<AuthPage> {
                                 'Ten minste 1 hoofdletter',
                                 style: TextStyle(
                                   color: _hasUppercase ? Colors.green : Colors.grey,
-                                  fontSize: 14,
+                                  fontSize: 10,
                                 ),
                               ),
                             ],
@@ -467,7 +467,7 @@ class _AuthPageState extends State<AuthPage> {
                                 'Ten minste 1 cijfer',
                                 style: TextStyle(
                                   color: _hasDigit ? Colors.green : Colors.grey,
-                                  fontSize: 14,
+                                  fontSize: 10,
                                 ),
                               ),
                             ],
@@ -478,14 +478,14 @@ class _AuthPageState extends State<AuthPage> {
                               Icon(
                                 _hasSpecialChar ? Icons.check_circle : Icons.circle_outlined,
                                 color: _hasSpecialChar ? Colors.green : Colors.grey,
-                                size: 16,
+                                size: 10,
                               ),
                               const SizedBox(width: 8),
                               Text(
                                 'Ten minste 1 speciaal teken (!@#\$%^&*?)',
                                 style: TextStyle(
                                   color: _hasSpecialChar ? Colors.green : Colors.grey,
-                                  fontSize: 14,
+                                  fontSize: 10,
                                 ),
                               ),
                             ],
