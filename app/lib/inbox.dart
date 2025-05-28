@@ -319,8 +319,8 @@ class _InboxPageState extends State<InboxPage> with SingleTickerProviderStateMix
                       }
                       if (itemSnapshot.hasError || !itemSnapshot.hasData || !itemSnapshot.data!.exists) {
                         return const ListTile(
-                          leading: Icon(Icons.error),
-                          title: Text('Item niet gevonden'),
+                  
+                          title: Text(' '),
                         );
                       }
 
