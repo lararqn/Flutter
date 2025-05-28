@@ -57,7 +57,6 @@ class _ProfilePageState extends State<ProfilePage>
     for (var doc in reservationsSnapshot.docs) {
       await doc.reference.delete();
     }
- 
   }
 
   Future<void> _logout() async {
@@ -307,7 +306,9 @@ class _ProfilePageState extends State<ProfilePage>
                       FirebaseFirestore.instance
                           .collection('Reservations')
                           .where('userId', isEqualTo: _currentUser.uid)
+                          .where('status', isEqualTo: 'approved')
                           .snapshots(),
+
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
@@ -349,10 +350,7 @@ class _ProfilePageState extends State<ProfilePage>
                             if (itemSnapshot.hasError ||
                                 !itemSnapshot.hasData ||
                                 !itemSnapshot.data!.exists) {
-                              return const ListTile(
-                                leading: Icon(Icons.error),
-                                title: Text('Item niet gevonden'),
-                              );
+                              return const ListTile(title: Text(' '));
                             }
 
                             var itemData =
